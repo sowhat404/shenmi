@@ -338,7 +338,7 @@ private fun ClaudeStyleDisclaimer(modifier: Modifier = Modifier) {
         Text(
             text = "Claude can make mistakes.\nPlease double-check responses.",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 220.dp),

@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -1076,7 +1077,11 @@ private fun TextInputRow(
                 },
             shape = RoundedCornerShape(22.dp),
             placeholder = {
-                Text(stringResource(R.string.chat_input_placeholder))
+                Text(
+                    text = stringResource(R.string.chat_input_placeholder),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.offset(x = (-2).dp, y = (-4).dp)
+                )
             },
             lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5),
             keyboardOptions = KeyboardOptions(
@@ -1528,7 +1533,11 @@ private fun FullScreenEditor(
                             .fillMaxSize(),
                         shape = RoundedCornerShape(32.dp),
                         placeholder = {
-                            Text(stringResource(R.string.chat_input_placeholder))
+                            Text(
+                                text = stringResource(R.string.chat_input_placeholder),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.offset(x = (-2).dp, y = (-4).dp)
+                            )
                         },
                         colors = TextFieldDefaults.colors().copy(
                             unfocusedIndicatorColor = Color.Transparent,
