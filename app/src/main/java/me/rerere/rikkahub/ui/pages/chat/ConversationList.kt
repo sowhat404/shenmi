@@ -231,7 +231,7 @@ private fun ConversationItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val backgroundColor = if (selected) {
-        MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp)
+        MaterialTheme.colorScheme.surfaceContainerHigh
     } else {
         Color.Transparent
     }

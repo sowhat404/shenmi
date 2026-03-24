@@ -4,6 +4,8 @@ import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
@@ -73,6 +75,12 @@ fun RikkahubTheme(
         }
     }
     val extendColors = if (darkTheme) ExtendDarkColors else ExtendLightColors
+    val textSelectionColors = remember(colorSchemeConverted) {
+        TextSelectionColors(
+            handleColor = colorSchemeConverted.primary,
+            backgroundColor = Color(0xFFF1EEE7)
+        )
+    }
 
     // 更新状态栏图标颜色
     val view = LocalView.current
@@ -89,7 +97,8 @@ fun RikkahubTheme(
     CompositionLocalProvider(
         LocalDarkMode provides darkTheme,
         LocalExtendColors provides extendColors,
-        LocalOverscrollFactory provides null
+        LocalOverscrollFactory provides null,
+        LocalTextSelectionColors provides textSelectionColors,
     ) {
         MaterialExpressiveTheme(
             colorScheme = colorSchemeConverted,

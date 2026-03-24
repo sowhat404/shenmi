@@ -181,7 +181,7 @@
   <string name="calculating">计算中...</string>
   <string name="cancel">取消</string>
   <string name="cancel_edit">取消编辑</string>
-  <string name="chat_input_placeholder">输入消息与AI聊天</string>
+  <string name="chat_input_placeholder">Reply…</string>
   <string name="chat_message_tool_call_generic">调用工具 %1$s</string>
   <string name="chat_message_tool_call_label">调用工具 %1$s</string>
   <string name="chat_message_tool_call_result">调用结果</string>
@@ -627,6 +627,7 @@
   <string name="test_tts">测试语音</string>
   <string name="theme_name_autumn">秋黄</string>
   <string name="theme_name_black">中性黑</string>
+  <string name="theme_name_claude">Claude 暖调</string>
   <string name="theme_name_ocean">海湾蓝</string>
   <string name="theme_name_sakura">樱花粉</string>
   <string name="theme_name_spring">原野绿</string>

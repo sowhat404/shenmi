@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -93,6 +94,7 @@ import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.BitmapComposer
 import me.rerere.rikkahub.ui.components.ui.ChainOfThought
 import me.rerere.rikkahub.ui.components.ui.ChainOfThoughtScope
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import com.dokar.sonner.rememberToasterState
@@ -465,42 +467,16 @@ private fun ExportedChatImage(
             LocalToaster provides toasterState
         ) {
             Surface(
-                modifier = Modifier.width(540.dp) // like 1080p but with density independence
+                modifier = Modifier.width(540.dp),
+                color = MaterialTheme.colorScheme.background,
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                text = conversation.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            )
-                            Text(
-                                text = "${LocalDateTime.now().toLocalString()}  rikka-ai.com",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Use painterResource for the logo
-                        val painter = painterResource(id = R.mipmap.ic_launcher_foreground)
-                        Image(
-                            painter = painter,
-                            contentDescription = "Logo",
-                            modifier = Modifier.size(60.dp)
-                        )
-                    }
-
-                    // Messages
                     messages.forEach { message ->
                         ExportedChatMessage(
                             message = message,
@@ -509,12 +485,12 @@ private fun ExportedChatImage(
                         )
                     }
 
-                    // Watermark
-                    Column {
-                        Text(
-                            text = stringResource(R.string.export_image_warning),
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    val latestAssistantMessage = messages.lastOrNull { it.role == MessageRole.ASSISTANT }
+                    if (latestAssistantMessage != null) {
+                        ExportedClaudeStyleDisclaimer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 18.dp)
                         )
                     }
                 }
@@ -533,19 +509,11 @@ private fun ExportedChatMessage(
     if (message.parts.isEmptyUIMessage()) return
     val context = LocalContext.current
     val settings = LocalSettings.current
-    val model = message.modelId?.let { settings.findModelById(it) }
-    // Always show model icon for assistant messages in exported images
-    val showModelIcon = message.role == MessageRole.ASSISTANT && prevMessage?.role == MessageRole.USER
-    val iconLabel = when {
-        model?.modelId?.isNotBlank() == true -> model.modelId
-        model?.displayName?.isNotBlank() == true -> model.displayName
-        else -> "AI"
-    }
     val groupedParts = remember(message.parts) { message.parts.groupMessageParts() }
     val messageContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
-                .widthIn(max = (540 * 0.9).dp)
+                .widthIn(max = if (message.role == MessageRole.USER) 660.dp else 760.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start
@@ -555,7 +523,9 @@ private fun ExportedChatMessage(
                     is MessagePartBlock.ThinkingBlock -> {
                         if (block.steps.isNotEmpty()) {
                             ChainOfThought(
+                                flatWhenSingleStep = true,
                                 steps = block.steps,
+                                collapsedAdaptiveWidth = true,
                                 collapsedVisibleCount = block.steps.size
                             ) { step ->
                                 when (step) {
@@ -582,31 +552,37 @@ private fun ExportedChatMessage(
                                 if (part.text.isNotBlank()) {
                                     ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
                                         if (message.role == MessageRole.USER) {
-                                            Card(
-                                                shape = MaterialTheme.shapes.medium,
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    0.6.dp,
+                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.9f)
+                                                ),
+                                                shadowElevation = 0.dp,
+                                                tonalElevation = 0.dp,
+                                                modifier = Modifier.padding(start = 40.dp)
                                             ) {
                                                 MarkdownBlock(
                                                     content = part.text,
-                                                    modifier = Modifier.padding(8.dp)
+                                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
                                                 )
                                             }
                                         } else {
                                             if (settings.displaySetting.showAssistantBubble) {
                                                 Card(
-                                                    shape = MaterialTheme.shapes.medium,
+                                                    shape = RoundedCornerShape(12.dp),
                                                     colors = CardDefaults.cardColors(
                                                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                                     )
                                                 ) {
                                                     MarkdownBlock(
                                                         content = part.text,
-                                                        modifier = Modifier.padding(8.dp)
+                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
                                                     )
                                                 }
                                             } else {
-                                                MarkdownBlock(
-                                                    content = part.text,
-                                                )
+                                                MarkdownBlock(content = part.text)
                                             }
                                         }
                                     }
@@ -637,26 +613,6 @@ private fun ExportedChatMessage(
         }
     }
 
-    if (showModelIcon) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            AutoAIIcon(
-                name = iconLabel,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .size(36.dp)
-            )
-
-            Text(
-                text = iconLabel,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-    }
     messageContent()
 }
 
@@ -767,6 +723,31 @@ private fun ChainOfThoughtScope.ExportedToolStep(
         contentVisible = false,
         content = null,
     )
+}
+
+@Composable
+private fun ExportedClaudeStyleDisclaimer(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = ClaudeIcons.ClaudeMark,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(28.dp)
+        )
+        Text(
+            text = "Claude can make mistakes.\nPlease double-check responses.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 220.dp),
+            textAlign = TextAlign.End
+        )
+    }
 }
 
 private fun shareFile(context: Context, uri: Uri, mimeType: String) {

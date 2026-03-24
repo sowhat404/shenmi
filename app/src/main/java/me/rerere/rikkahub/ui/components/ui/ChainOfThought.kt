@@ -37,6 +37,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
@@ -71,6 +72,7 @@ fun <T> ChainOfThought(
     cardColors: CardColors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
     ),
+    flatWhenSingleStep: Boolean = false,
     steps: List<T>,
     collapsedVisibleCount: Int = 2,
     collapsedAdaptiveWidth: Boolean = false,
@@ -79,20 +81,20 @@ fun <T> ChainOfThought(
     var expanded by remember { mutableStateOf(false) }
     val canCollapse = steps.size > collapsedVisibleCount
     val shouldFillCollapseControlWidth = expanded || !collapsedAdaptiveWidth
+    val renderFlat = flatWhenSingleStep && steps.size == 1 && !canCollapse
 
     CompositionLocalProvider(
-        LocalCardColor provides cardColors.containerColor
+        LocalCardColor provides if (renderFlat) MaterialTheme.colorScheme.background else cardColors.containerColor
     ) {
-        Card(
-            modifier = modifier,
-            colors = cardColors,
-        ) {
+        val contentModifier = Modifier
+            .padding(horizontal = if (renderFlat) 0.dp else 8.dp, vertical = if (renderFlat) 0.dp else 4.dp)
+            .animateContentSize(
+                animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
+            )
+
+        val contentBody: @Composable () -> Unit = {
             Column(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .animateContentSize(
-                        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
-                    ),
+                modifier = contentModifier,
             ) {
                 val visibleSteps = if (expanded || !canCollapse) {
                     steps
@@ -100,7 +102,6 @@ fun <T> ChainOfThought(
                     steps.takeLast(collapsedVisibleCount)
                 }
 
-                // 显示展开/折叠按钮（统一在顶部）
                 if (canCollapse) {
                     Row(
                         modifier = Modifier
@@ -116,7 +117,6 @@ fun <T> ChainOfThought(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // 左侧：图标区域（24.dp，和步骤图标对齐）
                         Box(
                             modifier = Modifier.width(24.dp),
                             contentAlignment = Alignment.Center,
@@ -129,7 +129,6 @@ fun <T> ChainOfThought(
                             )
                         }
 
-                        // 右侧：文字区域（8.dp 间距后开始，和步骤 label 对齐）
                         Text(
                             modifier = Modifier.padding(start = 8.dp),
                             text = if (expanded) {
@@ -166,6 +165,17 @@ fun <T> ChainOfThought(
                         }
                     }
                 }
+            }
+        }
+
+        if (renderFlat) {
+            contentBody()
+        } else {
+            Card(
+                modifier = modifier,
+                colors = cardColors,
+            ) {
+                contentBody()
             }
         }
     }
@@ -329,18 +339,18 @@ private class ChainOfThoughtScopeImpl : ChainOfThoughtScope {
             ) {
                 // Icon（不透明背景遮住背后的连线）
                 Box(
-                    modifier = Modifier.width(24.dp),
+                    modifier = Modifier.width(32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(32.dp)
                             .background(LocalCardColor.current),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (icon != null) {
                             Box(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 icon()
@@ -384,9 +394,9 @@ private class ChainOfThoughtScopeImpl : ChainOfThoughtScope {
                     )
                 } else if (hasContent) {
                     Icon(
-                        imageVector = if (expanded) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
+                        imageVector = if (expanded) HugeIcons.ArrowUp01 else ClaudeIcons.ChevronRight,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(24.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
@@ -21,6 +22,7 @@ import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.content.hasMediaType
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,8 +57,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -77,6 +81,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -92,6 +97,7 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import androidx.compose.ui.draw.shadow
 import com.dokar.sonner.ToastType
 import com.yalantis.ucrop.UCrop
 import com.yalantis.ucrop.UCropActivity
@@ -100,22 +106,28 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import me.rerere.ai.core.ReasoningLevel
+import me.rerere.ai.provider.BuiltInTools
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
-import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Book03
 import me.rerere.hugeicons.stroke.Camera01
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Files02
 import me.rerere.hugeicons.stroke.FullScreen
+import me.rerere.hugeicons.stroke.GlobalSearch
+import me.rerere.hugeicons.stroke.Idea
+import me.rerere.hugeicons.stroke.Idea01
 import me.rerere.hugeicons.stroke.Image02
+import me.rerere.hugeicons.stroke.Mic01
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.Package01
@@ -125,6 +137,7 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
@@ -136,6 +149,7 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.ui.components.ui.ExtensionSelector
 import me.rerere.rikkahub.ui.components.ui.KeepScreenOn
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -146,9 +160,15 @@ import org.koin.compose.koinInject
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
+import me.rerere.search.SearchServiceOptions
 
 enum class ExpandState {
     Collapsed, Files,
+}
+
+private enum class CapabilitySheetTab {
+    Search,
+    Reasoning,
 }
 
 @Composable
@@ -172,7 +192,9 @@ fun ChatInput(
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
+    val chatModel = settings.getCurrentChatModel()
     val hazeTintColor = MaterialTheme.colorScheme.surfaceContainerLow
+    var showCapabilitySheet by remember { mutableStateOf(false) }
 
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -375,43 +397,22 @@ fun ChatInput(
             modifier = modifier
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp),
+                .padding(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.largeIncreased)
-                    .then(
-                        if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin(containerColor = hazeTintColor)
-                        )
-                        else Modifier
-                    ),
-                shape = MaterialTheme.shapes.largeIncreased,
-                tonalElevation = 0.dp,
-                color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else hazeTintColor,
-            ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 64.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (state.messageContent.isNotEmpty()) {
-                        MediaFileInputRow(state = state)
-                    }
-
-                    TextInputRow(
-                        state = state,
-                        onSendMessage = { sendMessage() }
-                    )
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
+                            .padding(horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Row(
                             modifier = Modifier
@@ -419,55 +420,6 @@ fun ChatInput(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            // Model Picker
-                            ModelSelector(
-                                modelId = assistant.chatModelId ?: settings.chatModelId,
-                                providers = settings.providers,
-                                onSelect = {
-                                    onUpdateChatModel(it)
-                                    dismissExpand()
-                                },
-                                type = ModelType.CHAT,
-                                onlyIcon = true,
-                                modifier = Modifier,
-                            )
-
-                            // Search
-                            val enableSearchMsg = stringResource(R.string.web_search_enabled)
-                            val disableSearchMsg = stringResource(R.string.web_search_disabled)
-                            val chatModel = settings.getCurrentChatModel()
-                            SearchPickerButton(
-                                enableSearch = enableSearch,
-                                settings = settings,
-                                onToggleSearch = { enabled ->
-                                    onToggleSearch(enabled)
-                                    toaster.show(
-                                        message = if (enabled) enableSearchMsg else disableSearchMsg,
-                                        duration = 1.seconds,
-                                        type = if (enabled) {
-                                            ToastType.Success
-                                        } else {
-                                            ToastType.Normal
-                                        }
-                                    )
-                                },
-                                onUpdateSearchService = onUpdateSearchService,
-                                model = chatModel,
-                            )
-
-                            // Reasoning
-                            val model = settings.getCurrentChatModel()
-                            if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
-                                ReasoningButton(
-                                    reasoningTokens = assistant.thinkingBudget ?: 0,
-                                    onUpdateReasoningTokens = {
-                                        onUpdateAssistant(assistant.copy(thinkingBudget = it))
-                                    },
-                                    onlyIcon = true,
-                                )
-                            }
-
-                            // MCP
                             if (settings.mcpServers.isNotEmpty()) {
                                 McpPickerButton(
                                     assistant = assistant,
@@ -479,65 +431,153 @@ fun ChatInput(
                                 )
                             }
                         }
+                    }
+                }
 
-                        ActionIconButton(
-                            onClick = {
-                                expandToggle(ExpandState.Files)
-                            }) {
-                            Icon(
-                                imageVector = if (expand == ExpandState.Files) HugeIcons.Cancel01 else HugeIcons.Add01,
-                                contentDescription = stringResource(R.string.more_options)
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .then(
+                            if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.ultraThin(
+                                    containerColor = Color.White.copy(alpha = 0.92f)
+                                )
                             )
+                            else Modifier
+                        ),
+                    shape = RoundedCornerShape(28.dp),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)),
+                    color = Color.White,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (state.messageContent.isNotEmpty()) {
+                            MediaFileInputRow(state = state)
                         }
 
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .combinedClickable(
-                                    enabled = loading || !state.isEmpty(),
-                                    onClick = {
-                                        dismissExpand()
-                                        sendMessage()
-                                    }, onLongClick = {
-                                        dismissExpand()
-                                        sendMessageWithoutAnswer()
-                                    }
-                                )
+                        TextInputRow(
+                            state = state,
+                            onSendMessage = { sendMessage() },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val containerColor = when {
-                                loading -> MaterialTheme.colorScheme.errorContainer // 加载时，红色
-                                state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh // 禁用时(输入为空)，灰色
-                                else -> MaterialTheme.colorScheme.primary // 启用时(输入非空)，绿色/主题色
-                            }
-                            val contentColor = when {
-                                loading -> MaterialTheme.colorScheme.onErrorContainer
-                                state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) // 禁用时，内容用带透明度的灰色
-                                else -> MaterialTheme.colorScheme.onPrimary
-                            }
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = CircleShape,
-                                color = containerColor,
-                                content = {})
-                            if (loading) {
-                                KeepScreenOn()
+                            ActionIconButton(
+                                onClick = {
+                                    expandToggle(ExpandState.Files)
+                                },
+                                containerColor = Color.Transparent,
+                                iconSize = 32.dp,
+                                size = 38.dp
+                            ) {
                                 Icon(
-                                    imageVector = HugeIcons.Cancel01,
-                                    contentDescription = stringResource(R.string.stop),
-                                    tint = contentColor
+                                    imageVector = if (expand == ExpandState.Files) HugeIcons.Cancel01 else ClaudeIcons.Add,
+                                    contentDescription = stringResource(R.string.more_options),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            } else {
+                            }
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            ActionIconButton(
+                                onClick = {
+                                    dismissExpand()
+                                    showCapabilitySheet = true
+                                },
+                                containerColor = Color.Transparent,
+                                iconSize = 32.dp,
+                                size = 38.dp
+                            ) {
                                 Icon(
-                                    imageVector = HugeIcons.ArrowUp02,
-                                    contentDescription = stringResource(R.string.send),
-                                    tint = contentColor
+                                    imageVector = ClaudeIcons.Mic,
+                                    contentDescription = stringResource(R.string.setting_provider_page_reasoning),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        enabled = loading || !state.isEmpty(),
+                                        onClick = {
+                                            dismissExpand()
+                                            sendMessage()
+                                        }, onLongClick = {
+                                            dismissExpand()
+                                            sendMessageWithoutAnswer()
+                                        }
+                                    )
+                            ) {
+                                val containerColor = when {
+                                    loading -> MaterialTheme.colorScheme.errorContainer
+                                    else -> Color(0xFF111111)
+                                }
+                                val contentColor = when {
+                                    loading -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> Color.White
+                                }
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    shape = CircleShape,
+                                    color = containerColor,
+                                    content = {}
+                                )
+                                if (loading) {
+                                    KeepScreenOn()
+                                    Icon(
+                                        imageVector = HugeIcons.Cancel01,
+                                        contentDescription = stringResource(R.string.stop),
+                                        tint = contentColor
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = ClaudeIcons.Send,
+                                        contentDescription = stringResource(R.string.send),
+                                        tint = contentColor,
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            val webSearchEnabledText = stringResource(R.string.web_search_enabled)
+            val webSearchDisabledText = stringResource(R.string.web_search_disabled)
+
+            if (showCapabilitySheet) {
+                CapabilitySettingsSheet(
+                    enableSearch = enableSearch,
+                    settings = settings,
+                    assistant = assistant,
+                    model = chatModel,
+                    onDismiss = { showCapabilitySheet = false },
+                    onToggleSearch = { enabled ->
+                        onToggleSearch(enabled)
+                        toaster.show(
+                            message = if (enabled) webSearchEnabledText else webSearchDisabledText,
+                            duration = 1.seconds,
+                            type = if (enabled) ToastType.Success else ToastType.Normal
+                        )
+                    },
+                    onUpdateSearchService = onUpdateSearchService,
+                    onUpdateAssistant = onUpdateAssistant,
+                )
             }
 
             // Expanded content
@@ -594,14 +634,17 @@ fun ChatInput(
 @Composable
 private fun ActionIconButton(
     onClick: () -> Unit,
+    containerColor: Color = Color.Transparent,
+    iconSize: androidx.compose.ui.unit.Dp = 20.dp,
+    size: androidx.compose.ui.unit.Dp = 36.dp,
     content: @Composable () -> Unit,
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(36.dp),
+        modifier = Modifier.size(size),
         shape = CircleShape,
         tonalElevation = 0.dp,
-        color = Color.Transparent,
+        color = containerColor,
     ) {
         Box(
             modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
@@ -612,9 +655,345 @@ private fun ActionIconButton(
 }
 
 @Composable
+private fun CapabilitySettingsSheet(
+    enableSearch: Boolean,
+    settings: Settings,
+    assistant: Assistant,
+    model: Model?,
+    onDismiss: () -> Unit,
+    onToggleSearch: (Boolean) -> Unit,
+    onUpdateSearchService: (Int) -> Unit,
+    onUpdateAssistant: (Assistant) -> Unit,
+) {
+    val settingsStore: SettingsStore = koinInject()
+    val scope = rememberCoroutineScope()
+    val builtInSearchSupported = model != null && (
+        ModelRegistry.GEMINI_SERIES.match(model.modelId) || model.modelId.contains("gpt-")
+    )
+    var tab by remember { mutableStateOf(CapabilitySheetTab.Search) }
+    var customReasoningInput by remember(assistant.thinkingBudget) {
+        mutableStateOf((assistant.thinkingBudget ?: 0).toString())
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.82f)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CapabilitySheetTab.entries.forEach { item ->
+                    val selected = tab == item
+                    val containerColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                    val contentColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        onClick = { tab = item },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(20.dp),
+                        color = containerColor,
+                        border = BorderStroke(
+                            1.dp,
+                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.10f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (item == CapabilitySheetTab.Search) HugeIcons.GlobalSearch else HugeIcons.Idea01,
+                                contentDescription = null,
+                                tint = contentColor
+                            )
+                            Text(
+                                text = if (item == CapabilitySheetTab.Search) stringResource(R.string.search_picker_title) else stringResource(R.string.setting_provider_page_reasoning),
+                                color = contentColor,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (tab == CapabilitySheetTab.Search) {
+                if (builtInSearchSupported && model != null) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(HugeIcons.GlobalSearch, null)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.built_in_search_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = stringResource(R.string.built_in_search_description),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = model.tools.contains(BuiltInTools.Search),
+                                onCheckedChange = { checked ->
+                                    val latestSettings = settingsStore.settingsFlow.value
+                                    scope.launch {
+                                        settingsStore.update(
+                                            latestSettings.copy(
+                                                providers = latestSettings.providers.map { providerSetting ->
+                                                    providerSetting.editModel(
+                                                        model.copy(
+                                                            tools = if (checked) model.tools + BuiltInTools.Search else model.tools - BuiltInTools.Search
+                                                        )
+                                                    )
+                                                }
+                                            )
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (model?.tools?.contains(BuiltInTools.Search) != true) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(HugeIcons.GlobalSearch, null)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.use_web_search),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = if (enableSearch) stringResource(R.string.web_search_enabled) else stringResource(R.string.web_search_disabled),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = enableSearch,
+                                onCheckedChange = onToggleSearch,
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        settings.searchServices.forEachIndexed { index, service ->
+                            val selected = settings.searchServiceSelected == index
+                            val containerColor by animateColorAsState(
+                                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                            )
+                            val contentColor by animateColorAsState(
+                                if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            )
+                            Surface(
+                                onClick = { onUpdateSearchService(index) },
+                                shape = RoundedCornerShape(20.dp),
+                                color = containerColor,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.10f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(HugeIcons.GlobalSearch, null, tint = contentColor)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = SearchServiceOptions.TYPES[service::class] ?: "Search",
+                                            color = contentColor,
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        Text(
+                                            text = if (selected) "已启用" else "点击选择",
+                                            color = contentColor.copy(alpha = 0.72f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        listOf(
+                            Triple(ReasoningLevel.OFF, stringResource(R.string.reasoning_off), 0),
+                            Triple(ReasoningLevel.AUTO, stringResource(R.string.reasoning_auto), -1),
+                            Triple(ReasoningLevel.LOW, stringResource(R.string.reasoning_light), 1024),
+                            Triple(ReasoningLevel.MEDIUM, stringResource(R.string.reasoning_medium), 16_000),
+                            Triple(ReasoningLevel.HIGH, stringResource(R.string.reasoning_heavy), 32_000),
+                        ).forEach { (level, title, budget) ->
+                            val selected = ReasoningLevel.fromBudgetTokens(assistant.thinkingBudget ?: 0) == level
+                            val containerColor by animateColorAsState(
+                                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                            )
+                            val contentColor by animateColorAsState(
+                                if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            )
+                            Surface(
+                                onClick = {
+                                    customReasoningInput = budget.toString()
+                                    onUpdateAssistant(assistant.copy(thinkingBudget = budget))
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = containerColor,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.10f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = when (level) {
+                                            ReasoningLevel.OFF -> HugeIcons.Idea
+                                            ReasoningLevel.AUTO -> HugeIcons.Idea01
+                                            ReasoningLevel.LOW -> HugeIcons.Idea01
+                                            ReasoningLevel.MEDIUM -> HugeIcons.Idea01
+                                            ReasoningLevel.HIGH -> HugeIcons.Idea01
+                                        },
+                                        contentDescription = null,
+                                        tint = contentColor
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = title,
+                                            color = contentColor,
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        Text(
+                                            text = budgetLabel(budget),
+                                            color = contentColor.copy(alpha = 0.72f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = customReasoningInput,
+                            onValueChange = { value ->
+                                customReasoningInput = value
+                                value.toIntOrNull()?.let { tokens ->
+                                    onUpdateAssistant(assistant.copy(thinkingBudget = tokens))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = {
+                                Text(stringResource(R.string.reasoning_custom))
+                            }
+                        )
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(HugeIcons.Idea, null)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.setting_provider_page_reasoning),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = "当前模型不支持推理",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun budgetLabel(tokens: Int): String {
+    return when (tokens) {
+        0 -> "Off"
+        -1 -> "Auto"
+        1024 -> "1K tokens"
+        16_000 -> "16K tokens"
+        32_000 -> "32K tokens"
+        else -> "$tokens tokens"
+    }
+}
+
+@Composable
 private fun TextInputRow(
     state: ChatInputState,
     onSendMessage: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
@@ -624,7 +1003,7 @@ private fun TextInputRow(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         if (state.isEditing()) {
@@ -695,7 +1074,7 @@ private fun TextInputRow(
                 .onFocusChanged {
                     isFocused = it.isFocused
                 },
-            shape = MaterialTheme.shapes.largeIncreased,
+            shape = RoundedCornerShape(22.dp),
             placeholder = {
                 Text(stringResource(R.string.chat_input_placeholder))
             },
@@ -711,8 +1090,9 @@ private fun TextInputRow(
             colors = TextFieldDefaults.colors().copy(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
             ),
             trailingIcon = {
                 if (isFocused) {
@@ -811,7 +1191,7 @@ private fun MediaFileInputRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
             .horizontalScroll(rememberScrollState())
     ) {
         state.messageContent.fastForEach { part ->

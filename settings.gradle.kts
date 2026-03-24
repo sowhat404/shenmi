@@ -7,6 +7,9 @@ pluginManagement {
                 includeGroupByRegex("androidx.*")
             }
         }
+        maven("https://maven.aliyun.com/repository/central")
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
         mavenCentral()
         gradlePluginPortal()
         maven("https://repo.itextsupport.com/android")
@@ -23,6 +26,9 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/central")
         mavenCentral()
         maven("https://jitpack.io")
         mavenLocal()

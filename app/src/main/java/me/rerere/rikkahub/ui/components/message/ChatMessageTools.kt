@@ -160,6 +160,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     val isDenied = tool.approvalState is ToolApprovalState.Denied
     val arguments = tool.inputAsJson()
     val memoryAction = arguments.getStringContent("action")
+    val collapsedTextColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f)
     val content = if (tool.isExecuted) {
         runCatching {
             JsonInstant.parseToJsonElement(
@@ -208,6 +209,32 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         else -> stringResource(R.string.chat_message_tool_call_generic, tool.toolName)
     }
 
+    val collapsedPreview = when (tool.toolName) {
+        ToolNames.MEMORY -> when (memoryAction) {
+            MemoryActions.CREATE, MemoryActions.EDIT -> content.getStringContent("content")
+            MemoryActions.DELETE -> arguments.getStringContent("key") ?: content.getStringContent("key")
+            else -> null
+        }
+
+        ToolNames.SEARCH_WEB -> arguments.getStringContent("query")
+            ?: content.getStringContent("answer")
+
+        ToolNames.SCRAPE_WEB -> arguments.getStringContent("url")
+        ToolNames.GET_TIME_INFO -> arguments.getStringContent("timezone")
+        ToolNames.CLIPBOARD -> arguments.getStringContent("text")
+            ?: content.getStringContent("text")
+        ToolNames.TTS -> arguments.getStringContent("text")
+        ToolNames.USE_SKILL -> arguments.getStringContent("name")
+            ?: arguments.getStringContent("path")
+        else -> null
+    }?.replace(Regex("\\s+"), " ")?.trim()?.let {
+        when {
+            it.length > 28 -> it.take(28).trimEnd() + "…"
+            it.isBlank() -> title
+            else -> it
+        }
+    } ?: title
+
     // 判断是否有额外内容需要显示
     val hasExtraContent = when (tool.toolName) {
         ToolNames.MEMORY -> memoryAction in listOf(MemoryActions.CREATE, MemoryActions.EDIT) &&
@@ -233,18 +260,22 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                 Icon(
                     imageVector = getToolIcon(tool.toolName, memoryAction),
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = LocalContentColor.current.copy(alpha = 0.7f)
+                    modifier = Modifier.size(24.dp),
+                    tint = if (expanded) {
+                        LocalContentColor.current.copy(alpha = 0.7f)
+                    } else {
+                        collapsedTextColor
+                    }
                 )
             }
         },
         label = {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.secondary,
+                text = if (expanded) title else collapsedPreview,
+                style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                color = if (expanded) MaterialTheme.colorScheme.secondary else collapsedTextColor,
                 modifier = Modifier.shimmer(isLoading = loading),
-                maxLines = 2,
+                maxLines = if (expanded) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
         },
@@ -724,6 +755,7 @@ private fun ChainOfThoughtScope.AskUserToolStep(
     val answers = remember { mutableStateMapOf<String, String>() }
 
     val firstQuestion = questions.firstOrNull()?.question ?: "..."
+    val collapsedTextColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f)
 
     var expanded by remember { mutableStateOf(true) }
 
@@ -737,21 +769,29 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                 Icon(
                     imageVector = HugeIcons.BubbleChatQuestion,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = LocalContentColor.current.copy(alpha = 0.7f)
+                    modifier = Modifier.size(24.dp),
+                    tint = if (expanded) {
+                        LocalContentColor.current.copy(alpha = 0.7f)
+                    } else {
+                        collapsedTextColor
+                    }
                 )
             }
         },
         label = {
             Text(
-                text = if (questions.size <= 1) firstQuestion else stringResource(
-                    R.string.chat_message_tool_ask_questions,
-                    questions.size
-                ),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.secondary,
+                text = if (expanded) {
+                    if (questions.size <= 1) firstQuestion else stringResource(
+                        R.string.chat_message_tool_ask_questions,
+                        questions.size
+                    )
+                } else {
+                    firstQuestion
+                },
+                style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                color = if (expanded) MaterialTheme.colorScheme.secondary else collapsedTextColor,
                 modifier = Modifier.shimmer(isLoading = loading),
-                maxLines = 2,
+                maxLines = if (expanded) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
         },

@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,16 +118,13 @@ fun ChatDrawerContent(
     var showMenuPopup by remember { mutableStateOf(false) }
 
     ModalDrawerSheet(
-        modifier = Modifier.width(300.dp)
+        modifier = Modifier.width(300.dp),
+        drawerContainerColor = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (settings.displaySetting.showUpdates && !isPlayStore) {
-                UpdateCard(vm)
-            }
-
             BackupReminderCard(
                 settings = settings,
                 onClick = { navController.navigate(Screen.Backup) },
@@ -505,9 +503,11 @@ private fun DrawerAction(
     Surface(
         onClick = onClick,
         modifier = modifier,
-        color = MaterialTheme.colorScheme.primaryContainer,
+        color = Color.Transparent,
         shape = CircleShape,
         contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Tooltip(
             tooltip = {

@@ -8,10 +8,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,6 +59,7 @@ import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.core.content.FileProvider
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import kotlinx.coroutines.FlowPreview
@@ -90,6 +94,7 @@ import me.rerere.rikkahub.ui.theme.extendColors
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.base64Encode
+import me.rerere.rikkahub.utils.copyMessageToClipboard
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.urlDecode
 import java.util.Locale
@@ -127,60 +132,107 @@ fun ChatMessage(
             ChatFontFamily.MONOSPACE -> FontFamily.Monospace
         }
     )
+    val userTextStyle = textStyle.copy(
+        fontSize = textStyle.fontSize * 0.94f,
+        lineHeight = textStyle.lineHeight * 0.94f,
+    )
     var showActionsSheet by remember { mutableStateOf(false) }
     var showSelectCopySheet by remember { mutableStateOf(false) }
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (!message.parts.isEmptyUIMessage()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            ) {
-                ChatMessageAssistantAvatar(
-                    message = message,
-                    model = model,
-                    assistant = assistant,
-                    loading = loading,
-                    modifier = Modifier.weight(1f)
-                )
-                ChatMessageUserAvatar(
-                    message = message,
-                    avatar = settings.userAvatar,
-                    nickname = settings.userNickname,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        ProvideTextStyle(textStyle) {
-            MessagePartsBlock(
-                assistant = assistant,
-                role = message.role,
-                parts = message.parts,
-                annotations = message.annotations,
-                loading = loading,
-                model = model,
-                onToolApproval = onToolApproval,
-                onToolAnswer = onToolAnswer,
-                onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
+        if (!message.parts.isEmptyUIMessage() && message.role == MessageRole.USER) {
+            ChatMessageUserAvatar(
+                message = message,
+                avatar = settings.userAvatar,
+                nickname = settings.userNickname,
+                modifier = Modifier.fillMaxWidth()
             )
+        }
+        if (message.role == MessageRole.USER) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(
+                    0.6.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.9f)
+                ),
+                shadowElevation = 0.dp,
+                tonalElevation = 0.dp,
+                modifier = Modifier
+                    .widthIn(max = 660.dp)
+                    .padding(start = 40.dp)
+                    .combinedClickable(
+                        onClick = { onEdit() },
+                        onLongClick = { showActionsSheet = true }
+                    )
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ProvideTextStyle(userTextStyle) {
+                        MessagePartsBlock(
+                            assistant = assistant,
+                            role = message.role,
+                            parts = message.parts,
+                            annotations = message.annotations,
+                            loading = loading,
+                            model = model,
+                            onToolApproval = onToolApproval,
+                            onToolAnswer = onToolAnswer,
+                            onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
+                        )
 
-            message.translation?.let { translation ->
-                CollapsibleTranslationText(
-                    content = translation,
-                    onClickCitation = {}
-                )
+                        message.translation?.let { translation ->
+                            CollapsibleTranslationText(
+                                content = translation,
+                                onClickCitation = {}
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 760.dp)
+                    .padding(horizontal = 0.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ProvideTextStyle(textStyle) {
+                    MessagePartsBlock(
+                        assistant = assistant,
+                        role = message.role,
+                        parts = message.parts,
+                        annotations = message.annotations,
+                        loading = loading,
+                        model = model,
+                        onToolApproval = onToolApproval,
+                        onToolAnswer = onToolAnswer,
+                        onUserMessageClick = null,
+                    )
+
+                    message.translation?.let { translation ->
+                        CollapsibleTranslationText(
+                            content = translation,
+                            onClickCitation = {}
+                        )
+                    }
+                }
             }
         }
 
-        val showActions = if (lastMessage) {
+        val showActions = if (message.role == MessageRole.USER) {
+            false
+        } else if (lastMessage) {
             !loading
         } else {
             message.parts.isEmptyUIMessage().not()
@@ -202,10 +254,20 @@ fun ChatMessage(
                     onOpenActionSheet = {
                         showActionsSheet = true
                     },
+                    onToggleFavorite = onToggleFavorite,
+                    onFork = onFork,
                     onTranslate = onTranslate,
                     onClearTranslation = onClearTranslation
                 )
             }
+        }
+
+        if (message.role == MessageRole.ASSISTANT && lastMessage && !loading) {
+            ClaudeStyleDisclaimer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp)
+            )
         }
 
         ProvideTextStyle(textStyle) {
@@ -219,6 +281,10 @@ fun ChatMessage(
             onDelete = onDelete,
             onShare = onShare,
             onFork = onFork,
+            onCopy = {
+                context.copyMessageToClipboard(message)
+            },
+            onRegenerate = onRegenerate,
             model = model,
             onSelectAndCopy = {
                 showSelectCopySheet = true
@@ -251,6 +317,32 @@ fun ChatMessage(
             onDismissRequest = {
                 showSelectCopySheet = false
             }
+        )
+    }
+}
+
+@Composable
+private fun ClaudeStyleDisclaimer(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = ClaudeIcons.ClaudeMark,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(28.dp)
+        )
+        Text(
+            text = "Claude can make mistakes.\nPlease double-check responses.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 220.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
         )
     }
 }
@@ -313,8 +405,10 @@ private fun MessagePartsBlock(
             is MessagePartBlock.ThinkingBlock -> {
                 if (block.steps.isNotEmpty()) {
                     val isReasoningOnlyBlock = block.steps.fastAll { it is ThinkingStep.ReasoningStep }
+                    val isSingleThinkingStep = block.steps.size == 1
                     ChainOfThought(
                         modifier = Modifier.animateContentSize(),
+                        flatWhenSingleStep = isSingleThinkingStep,
                         steps = block.steps,
                         collapsedAdaptiveWidth = isReasoningOnlyBlock,
                     ) { step ->
@@ -350,22 +444,18 @@ private fun MessagePartsBlock(
                     is UIMessagePart.Text -> {
                         SelectionContainer {
                             if (role == MessageRole.USER) {
-                                Surface(
-                                    modifier = Modifier.animateContentSize(),
-                                    shape = MaterialTheme.shapes.medium,
-                                    tonalElevation = 2.dp,
-                                    onClick = { onUserMessageClick?.invoke() },
+                                Column(
+                                    modifier = Modifier
+                                        .animateContentSize()
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        MarkdownBlock(
-                                            content = part.text.replaceRegexes(
-                                                assistant = assistant,
-                                                scope = AssistantAffectScope.USER,
-                                                visual = true,
-                                            ),
-                                            onClickCitation = handleClickCitation
-                                        )
-                                    }
+                                    MarkdownBlock(
+                                        content = part.text.replaceRegexes(
+                                            assistant = assistant,
+                                            scope = AssistantAffectScope.USER,
+                                            visual = true,
+                                        ),
+                                        onClickCitation = handleClickCitation
+                                    )
                                 }
                             } else {
                                 if (settings.displaySetting.showAssistantBubble) {

@@ -265,13 +265,17 @@ private fun ChatListNormal(
 
         LazyColumn(
             state = state,
-            contentPadding = PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding()),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp + innerPadding.calculateTopPadding(),
+                end = 16.dp,
+                bottom = 32.dp + innerPadding.calculateBottomPadding(),
+            ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .hazeSource(state = hazeState)
-                .padding(top = innerPadding.calculateTopPadding()),
+                .hazeSource(state = hazeState),
         ) {
             itemsIndexed(
                 items = conversation.messageNodes,
@@ -332,11 +336,16 @@ private fun ChatListNormal(
 
             if (loading) {
                 item(LoadingIndicatorKey) {
-                    RabbitLoadingIndicator(
+                    Box(
                         modifier = Modifier
-                            .padding(8.dp)
-                            .size(28.dp)
-                    )
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        RabbitLoadingIndicator(
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
             }
 

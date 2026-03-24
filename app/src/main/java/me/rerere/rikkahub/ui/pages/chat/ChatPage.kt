@@ -2,25 +2,30 @@ package me.rerere.rikkahub.ui.pages.chat
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.currentWindowDpSize
@@ -32,28 +37,36 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dokar.sonner.ToastType
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.ModelType
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Cancel01
-import me.rerere.hugeicons.stroke.LeftToRightListBullet
-import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
@@ -64,8 +77,6 @@ import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.hooks.ChatInputState
-import me.rerere.rikkahub.ui.hooks.EditStateContent
-import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.utils.base64Decode
 import me.rerere.rikkahub.utils.navigateToChatPage
 import org.koin.androidx.compose.koinViewModel
@@ -260,18 +271,20 @@ private fun ChatPageContent(
             topBar = {
                 TopBar(
                     settings = setting,
+                    currentChatModel = currentChatModel,
                     conversation = conversation,
                     bigScreen = bigScreen,
                     drawerState = drawerState,
                     previewMode = previewMode,
+                    hazeState = hazeState,
                     onNewChat = {
                         navigateToChatPage(navController)
                     },
                     onClickMenu = {
                         previewMode = !previewMode
                     },
-                    onUpdateTitle = {
-                        vm.updateTitle(it)
+                    onUpdateChatModel = {
+                        vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
                     }
                 )
             },
@@ -350,7 +363,7 @@ private fun ChatPageContent(
                     },
                 )
             },
-            containerColor = Color.Transparent,
+            containerColor = MaterialTheme.colorScheme.background,
         ) { innerPadding ->
             ChatList(
                 innerPadding = innerPadding,
@@ -429,121 +442,150 @@ private fun ChatPageContent(
 @Composable
 private fun TopBar(
     settings: Settings,
+    currentChatModel: Model?,
     conversation: Conversation,
     drawerState: DrawerState,
     bigScreen: Boolean,
     previewMode: Boolean,
+    hazeState: dev.chrisbanes.haze.HazeState,
     onClickMenu: () -> Unit,
     onNewChat: () -> Unit,
-    onUpdateTitle: (String) -> Unit
+    onUpdateChatModel: (Model) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val toaster = LocalToaster.current
-    val titleState = useEditState<String> {
-        onUpdateTitle(it)
-    }
+    var showMoreMenu by rememberSaveable { mutableStateOf(false) }
 
-    TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        navigationIcon = {
-            if (!bigScreen) {
-                IconButton(
-                    onClick = {
-                        scope.launch { drawerState.open() }
-                    }
-                ) {
-                    Icon(HugeIcons.Menu03, "Messages")
-                }
-            }
-        },
-        title = {
-            val editTitleWarning = stringResource(R.string.chat_page_edit_title_warning)
-            Surface(
-                onClick = {
-                    if (conversation.messageNodes.isNotEmpty()) {
-                        titleState.open(conversation.title)
-                    } else {
-                        toaster.show(editTitleWarning, type = ToastType.Warning)
-                    }
-                },
-                color = Color.Transparent,
-            ) {
-                Column {
-                    val assistant = settings.getCurrentAssistant()
-                    val model = settings.getCurrentChatModel()
-                    val provider = model?.findProvider(providers = settings.providers, checkOverwrite = false)
-                    Text(
-                        text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
-                        maxLines = 1,
-                        style = MaterialTheme.typography.bodyMedium,
-                        overflow = TextOverflow.Ellipsis,
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                        0.78f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                        0.95f to MaterialTheme.colorScheme.background.copy(alpha = 0.62f),
+                        0.99f to MaterialTheme.colorScheme.background.copy(alpha = 0.18f),
+                        1.0f to Color.Transparent,
                     )
-                    if (model != null && provider != null) {
-                        Text(
-                            text = "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${model.displayName} (${provider.name})",
-                            overflow = TextOverflow.Ellipsis,
-                            maxLines = 1,
-                            color = LocalContentColor.current.copy(0.65f),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 8.sp,
-                            )
-                        )
+                )
+            )
+            .then(
+                if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
+                    state = hazeState,
+                    style = HazeMaterials.ultraThin(
+                        containerColor = Color.Transparent
+                    )
+                ) else Modifier
+            )
+    ) {
+        TopAppBar(
+            modifier = Modifier,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
+                navigationIconContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+            ),
+            navigationIcon = {
+                if (!bigScreen) {
+                    IconButton(
+                        onClick = {
+                            scope.launch { drawerState.open() }
+                        }
+                    ) {
+                        Icon(ClaudeIcons.ArrowLeft, "Messages")
                     }
                 }
-            }
-        },
-        actions = {
-            IconButton(
-                onClick = {
-                    onClickMenu()
-                }
-            ) {
-                Icon(if (previewMode) HugeIcons.Cancel01 else HugeIcons.LeftToRightListBullet, "Chat Options")
-            }
-
-            IconButton(
-                onClick = {
-                    onNewChat()
-                }
-            ) {
-                Icon(HugeIcons.MessageAdd01, "New Message")
-            }
-        },
-    )
-    titleState.EditStateContent { title, onUpdate ->
-        AlertDialog(
-            onDismissRequest = {
-                titleState.dismiss()
             },
             title = {
-                Text(stringResource(R.string.chat_page_edit_title))
-            },
-            text = {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = onUpdate,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+                ModelNameTrigger(
+                    currentChatModel = currentChatModel,
+                    providers = settings.providers,
+                    onUpdateChatModel = onUpdateChatModel,
                 )
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        titleState.confirm()
+            actions = {
+                Surface(color = Color.Transparent) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        IconButton(
+                            onClick = {
+                                showMoreMenu = true
+                            }
+                        ) {
+                            Icon(ClaudeIcons.DotsVertical, "Chat Options")
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (previewMode) "关闭预览模式" else "打开预览模式")
+                                },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onClickMenu()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_page_new_chat)) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onNewChat()
+                                }
+                            )
+                        }
                     }
-                ) {
-                    Text(stringResource(R.string.chat_page_save))
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        titleState.dismiss()
-                    }
-                ) {
-                    Text(stringResource(R.string.chat_page_cancel))
-                }
-            }
+        )
+    }
+}
+
+@Composable
+private fun ModelNameTrigger(
+    currentChatModel: Model?,
+    providers: List<ProviderSetting>,
+    onUpdateChatModel: (Model) -> Unit,
+) {
+    val currentModelId = currentChatModel?.id
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = currentChatModel?.displayName ?: stringResource(R.string.model_list_select_model),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Icon(
+                imageVector = ClaudeIcons.ChevronDown,
+                contentDescription = stringResource(R.string.model_list_select_model),
+                tint = Color.Unspecified,
+            )
+        }
+
+        me.rerere.rikkahub.ui.components.ai.ModelSelector(
+            modelId = currentModelId,
+            providers = providers,
+            type = ModelType.CHAT,
+            onSelect = onUpdateChatModel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(0.01f),
         )
     }
 }

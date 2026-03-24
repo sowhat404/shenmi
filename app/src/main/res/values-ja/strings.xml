@@ -625,6 +625,7 @@
   <string name="test_tts">音声テスト</string>
   <string name="theme_name_autumn">秋の黄色</string>
   <string name="theme_name_black">ニュートラルブラック</string>
+  <string name="theme_name_claude">Claude ウォーム</string>
   <string name="theme_name_ocean">オーシャンブルー</string>
   <string name="theme_name_sakura">サクラピンク</string>
   <string name="theme_name_spring">メドウグリーン</string>

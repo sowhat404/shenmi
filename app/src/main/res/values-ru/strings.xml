@@ -623,6 +623,7 @@
   <string name="test_tts">Проверка TTS</string>
   <string name="theme_name_autumn">Осенний жёлтый</string>
   <string name="theme_name_black">Нейтральный чёрный</string>
+  <string name="theme_name_claude">Claude тёплый</string>
   <string name="theme_name_ocean">Океанический синий</string>
   <string name="theme_name_sakura">Сакура Розовый</string>
   <string name="theme_name_spring">Луговой зелёный</string>

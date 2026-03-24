@@ -39,9 +39,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessagePart
-import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Idea01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.replaceRegexes
@@ -187,20 +186,42 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
     val (state, loading) = rememberReasoningState(reasoning)
     val thinkingTitle = reasoning.reasoning.extractThinkingTitle()
     val showThinkingTitle = loading && thinkingTitle != null
+    val collapsedPreview = remember(reasoning.reasoning) {
+        reasoning.reasoning
+            .replace(Regex("<[^>]+>"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .let {
+                when {
+                    it.length > 18 -> it.take(18).trimEnd() + "…"
+                    it.isBlank() -> "Thinking…"
+                    else -> it
+                }
+            }
+    }
+    val collapsedTextColor = Color.Black.copy(alpha = 0.75f)
+    val isCollapsed = state.expandState == ReasoningCardState.Collapsed
 
     ControlledChainOfThoughtStep(
         expanded = state.expandState == ReasoningCardState.Expanded,
         onExpandedChange = { state.onExpandedChange(it, loading) },
         icon = {
             Icon(
-                imageVector = HugeIcons.Idea01,
+                imageVector = ClaudeIcons.ExtendedThinking,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(24.dp),
+                tint = collapsedTextColor,
             )
         },
         label = {
-            if (showThinkingTitle) {
+            if (isCollapsed) {
+                Text(
+                    text = collapsedPreview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = collapsedTextColor,
+                    maxLines = 1,
+                )
+            } else if (showThinkingTitle) {
                 ReasoningTitle(title = thinkingTitle!!)
             } else {
                 Text(
@@ -215,7 +236,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
             }
         },
         extra = {
-            if (showThinkingTitle && state.duration > 0.seconds) {
+            if (!isCollapsed && showThinkingTitle && state.duration > 0.seconds) {
                 Text(
                     text = state.duration.toString(DurationUnit.SECONDS, 1),
                     style = MaterialTheme.typography.labelSmall,
