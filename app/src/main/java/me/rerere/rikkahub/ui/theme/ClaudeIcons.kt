@@ -199,6 +199,41 @@ object ClaudeIcons {
         }.build()
     }
 
+    val Stop: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "AnthropiconStop",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color(0xFF141413)), pathFillType = PathFillType.NonZero) {
+                moveTo(17.25f, 5f)
+                curveTo(18.216f, 5f, 19f, 5.784f, 19f, 6.75f)
+                verticalLineTo(17.25f)
+                curveTo(19f, 18.216f, 18.216f, 19f, 17.25f, 19f)
+                horizontalLineTo(6.75f)
+                curveTo(5.844f, 19f, 5.098f, 18.311f, 5.009f, 17.429f)
+                lineTo(5f, 17.25f)
+                verticalLineTo(6.75f)
+                curveTo(5f, 5.784f, 5.784f, 5f, 6.75f, 5f)
+                horizontalLineTo(17.25f)
+                close()
+                moveTo(6.75f, 6.5f)
+                curveTo(6.612f, 6.5f, 6.5f, 6.612f, 6.5f, 6.75f)
+                verticalLineTo(17.25f)
+                lineTo(6.505f, 17.301f)
+                curveTo(6.528f, 17.414f, 6.629f, 17.5f, 6.75f, 17.5f)
+                horizontalLineTo(17.25f)
+                curveTo(17.388f, 17.5f, 17.5f, 17.388f, 17.5f, 17.25f)
+                verticalLineTo(6.75f)
+                curveTo(17.5f, 6.612f, 17.388f, 6.5f, 17.25f, 6.5f)
+                horizontalLineTo(6.75f)
+                close()
+            }
+        }.build()
+    }
+
     val Play: ImageVector by lazy {
         ImageVector.Builder(
             name = "AnthropiconPlay",

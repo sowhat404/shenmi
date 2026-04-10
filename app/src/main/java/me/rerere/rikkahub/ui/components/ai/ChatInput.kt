@@ -524,11 +524,11 @@ fun ChatInput(
                                     )
                             ) {
                                 val containerColor = when {
-                                    loading -> MaterialTheme.colorScheme.errorContainer
+                                    loading -> Color(0xFFF1EEE7)
                                     else -> Color(0xFF111111)
                                 }
                                 val contentColor = when {
-                                    loading -> MaterialTheme.colorScheme.onErrorContainer
+                                    loading -> Color(0xFF141413)
                                     else -> Color.White
                                 }
                                 Surface(
@@ -540,7 +540,7 @@ fun ChatInput(
                                 if (loading) {
                                     KeepScreenOn()
                                     Icon(
-                                        imageVector = HugeIcons.Cancel01,
+                                        imageVector = ClaudeIcons.Stop,
                                         contentDescription = stringResource(R.string.stop),
                                         tint = contentColor
                                     )
@@ -1389,8 +1389,8 @@ private fun FilesPicker(
     ) {
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TakePicButton(onLaunchCamera = onTakePic)
 

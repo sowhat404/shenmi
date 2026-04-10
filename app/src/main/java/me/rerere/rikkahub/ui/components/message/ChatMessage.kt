@@ -141,6 +141,7 @@ fun ChatMessage(
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
+    val showNerdLine = settings.showTokenUsage && message.usage != null
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -270,8 +271,10 @@ fun ChatMessage(
             )
         }
 
-        ProvideTextStyle(textStyle) {
-            ChatMessageNerdLine(message = message)
+        if (showNerdLine) {
+            ProvideTextStyle(textStyle) {
+                ChatMessageNerdLine(message = message)
+            }
         }
     }
     if (showActionsSheet) {
