@@ -63,7 +63,8 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.dokar.sonner.ToastType
 import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.materials.HazeMaterials
+import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Job
@@ -734,6 +735,7 @@ private fun TopBar(
 ) {
     val scope = rememberCoroutineScope()
     var showMoreMenu by rememberSaveable { mutableStateOf(false) }
+    val topBarHazeStyle = HazeMaterials.ultraThin(containerColor = Color.Transparent)
 
     Box(
         modifier = Modifier
@@ -751,11 +753,12 @@ private fun TopBar(
             )
             .then(
                 if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                    state = hazeState,
-                    style = HazeMaterials.ultraThin(
-                        containerColor = Color.Transparent
-                    )
-                ) else Modifier
+                    state = hazeState
+                ) {
+                    blurEffect {
+                        style = topBarHazeStyle
+                    }
+                } else Modifier
             )
     ) {
         TopAppBar(
