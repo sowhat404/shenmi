@@ -458,13 +458,7 @@ private fun MessagePartsBlock(
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
                                 Column(
-                                    modifier = Modifier
-                                        .animateContentSize()
-                                        .then(
-                                            onUserMessageClick?.let { onClick ->
-                                                Modifier.clickable(onClick = onClick)
-                                            } ?: Modifier
-                                        )
+                                    modifier = Modifier.animateContentSize()
                                 ) {
                                     MarkdownBlock(
                                         content = part.text.replaceRegexes(
@@ -512,7 +506,7 @@ private fun MessagePartsBlock(
                         // 内部可选择的 Text 会频繁注册/注销，与 Compose 选择工具栏在绘制阶段
                         // 对 selectable 列表的排序产生并发修改，导致 ConcurrentModificationException。
                         // 生成结束后内容稳定，再启用文本选择。
-                        if (loading) {
+                        if (loading || role == MessageRole.USER) {
                             textContent()
                         } else {
                             SelectionContainer {

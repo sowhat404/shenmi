@@ -682,7 +682,7 @@ private fun DrawerActions(navController: Navigator) {
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp),
             shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            color = Color.Transparent,
         ) {
             Row(
                 modifier = Modifier
@@ -712,7 +712,7 @@ private fun DrawerActions(navController: Navigator) {
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp),
             shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            color = Color.Transparent,
         ) {
             Row(
                 modifier = Modifier
@@ -851,7 +851,7 @@ private fun FolderChip(
         color = if (selected) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
+            Color.Transparent
         },
         modifier = Modifier
             .clip(CircleShape)

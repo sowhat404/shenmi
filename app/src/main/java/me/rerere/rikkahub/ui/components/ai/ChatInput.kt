@@ -43,6 +43,9 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +64,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -85,11 +90,12 @@ import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ModelType
 import me.rerere.asr.ASRStatus
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Add01
-import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.FullScreen
+import me.rerere.hugeicons.stroke.GlobalSearch
+import me.rerere.hugeicons.stroke.Idea
 import me.rerere.hugeicons.stroke.Zap
+import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -109,6 +115,7 @@ import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalASRState
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
+import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
 import org.koin.compose.koinInject
@@ -134,7 +141,7 @@ fun ChatInput(
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
-    val hazeTintColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val hazeTintColor = Color.White
     val inputHazeStyle = HazeMaterials.thin(containerColor = hazeTintColor)
 
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -142,13 +149,14 @@ fun ChatInput(
 
     // 键盘弹出时让底部两角变直角，贴合 IME
     val imeVisible = WindowInsets.isImeVisible
+    val claudeShape = RoundedCornerShape(28.dp)
     val containerShape = if (imeVisible) {
-        MaterialTheme.shapes.largeIncreased.copy(
+        claudeShape.copy(
             bottomStart = CornerSize(0.dp),
             bottomEnd = CornerSize(0.dp),
         )
     } else {
-        MaterialTheme.shapes.largeIncreased
+        claudeShape
     }
 
     fun sendMessage() {
@@ -201,13 +209,13 @@ fun ChatInput(
             modifier = modifier
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp)
-                .padding(bottom = if (imeVisible) 0.dp else 8.dp),
+                .padding(start = 18.dp, top = 8.dp, end = 18.dp, bottom = if (imeVisible) 0.dp else 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .shadow(2.dp, containerShape, clip = false)
                     .clip(containerShape)
                     .then(
                         if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
@@ -221,12 +229,12 @@ fun ChatInput(
                     ),
                 shape = containerShape,
                 tonalElevation = 0.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)),
                 color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else hazeTintColor,
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     if (state.messageContent.isNotEmpty()) {
                         MediaFileInputRow(state = state)
@@ -241,96 +249,48 @@ fun ChatInput(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
+                            .padding(start = 2.dp, end = 2.dp, bottom = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ActionIconButton(
+                            onClick = onMoreClick
                         ) {
-                            // Model Picker
-                            ModelSelector(
-                                modelId = assistant.chatModelId ?: settings.chatModelId,
-                                providers = settings.providers,
-                                onSelect = {
-                                    onUpdateChatModel(it)
-                                },
-                                type = ModelType.CHAT,
-                                onlyIcon = true,
-                                modifier = Modifier,
+                            Icon(
+                                imageVector = ClaudeIcons.Add,
+                                contentDescription = stringResource(R.string.more_options)
                             )
+                        }
 
-                            // Search
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        var showCapabilities by remember { mutableStateOf(false) }
+                        ActionIconButton(
+                            onClick = { showCapabilities = true }
+                        ) {
+                            Icon(
+                                imageVector = ClaudeIcons.Mic,
+                                contentDescription = null
+                            )
+                        }
+                        if (showCapabilities) {
                             val enableSearchMsg = stringResource(R.string.web_search_enabled)
                             val disableSearchMsg = stringResource(R.string.web_search_disabled)
-                            val chatModel = settings.getCurrentChatModel()
-                            SearchPickerButton(
+                            CapabilitySettingsSheet(
                                 enableSearch = enableSearch,
                                 settings = settings,
+                                assistant = assistant,
                                 onToggleSearch = { enabled ->
                                     onToggleSearch(enabled)
                                     toaster.show(
                                         message = if (enabled) enableSearchMsg else disableSearchMsg,
                                         duration = 1.seconds,
-                                        type = if (enabled) {
-                                            ToastType.Success
-                                        } else {
-                                            ToastType.Normal
-                                        }
+                                        type = if (enabled) ToastType.Success else ToastType.Normal
                                     )
                                 },
                                 onUpdateSearchService = onUpdateSearchService,
-                                model = chatModel,
-                            )
-
-                            // Reasoning
-                            val model = settings.getCurrentChatModel()
-                            if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
-                                ReasoningButton(
-                                    reasoningLevel = assistant.reasoningLevel,
-                                    onUpdateReasoningLevel = {
-                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
-                                    },
-                                    onlyIcon = true,
-                                )
-                            }
-
-                        }
-
-                        ActionIconButton(
-                            onClick = onMoreClick
-                        ) {
-                            Icon(
-                                imageVector = HugeIcons.Add01,
-                                contentDescription = stringResource(R.string.more_options)
-                            )
-                        }
-
-                        if (asrState.isAvailable || asrState.isRecording) {
-                            AsrButton(
-                                state = asrState,
-                                onClick = {
-                                    when (asrState.status) {
-                                        ASRStatus.Listening -> asr.stop()
-                                        ASRStatus.Idle, ASRStatus.Error -> {
-                                            if (!asrPermission.allRequiredPermissionsGranted) {
-                                                asrPermission.requestPermissions()
-                                            } else {
-                                                asrBaseText = state.textContent.text.toString()
-                                                asr.start { transcript ->
-                                                    val spacer =
-                                                        if (asrBaseText.isBlank() || transcript.isBlank()) "" else " "
-                                                    state.setMessageText(asrBaseText + spacer + transcript)
-                                                }
-                                            }
-                                        }
-
-                                        ASRStatus.Connecting, ASRStatus.Stopping -> {}
-                                    }
-                                }
+                                onUpdateAssistant = onUpdateAssistant,
+                                onDismissRequest = { showCapabilities = false },
                             )
                         }
 
@@ -342,7 +302,7 @@ fun ChatInput(
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(30.dp)
+                                    .size(32.dp)
                                     .testTag("chat_send_button")
                                     .clip(CircleShape)
                                     .combinedClickable(
@@ -355,14 +315,14 @@ fun ChatInput(
                                     )
                             ) {
                                 val containerColor = when {
-                                    loading -> MaterialTheme.colorScheme.errorContainer
+                                    loading -> MaterialTheme.colorScheme.surfaceContainerHigh
                                     state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
-                                    else -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onSurface
                                 }
                                 val contentColor = when {
-                                    loading -> MaterialTheme.colorScheme.onErrorContainer
+                                    loading -> MaterialTheme.colorScheme.onSurfaceVariant
                                     state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                    else -> MaterialTheme.colorScheme.onPrimary
+                                    else -> MaterialTheme.colorScheme.surface
                                 }
                                 Surface(
                                     modifier = Modifier.fillMaxSize(),
@@ -372,14 +332,14 @@ fun ChatInput(
                                 if (loading) {
                                     KeepScreenOn()
                                     Icon(
-                                        imageVector = HugeIcons.Cancel01,
+                                        imageVector = ClaudeIcons.Stop,
                                         contentDescription = stringResource(R.string.stop),
                                         tint = contentColor,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 } else {
                                     Icon(
-                                        imageVector = HugeIcons.ArrowUp02,
+                                        imageVector = ClaudeIcons.Send,
                                         contentDescription = stringResource(R.string.send),
                                         tint = contentColor,
                                         modifier = Modifier.size(18.dp)
@@ -781,6 +741,101 @@ private fun FullScreenEditor(
                         ),
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapabilitySettingsSheet(
+    enableSearch: Boolean,
+    settings: Settings,
+    assistant: Assistant,
+    onToggleSearch: (Boolean) -> Unit,
+    onUpdateSearchService: (Int) -> Unit,
+    onUpdateAssistant: (Assistant) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val chatModel = settings.getCurrentChatModel()
+    val showReasoningTab = chatModel?.abilities?.contains(ModelAbility.REASONING) == true
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.7f)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ToggleSurface(
+                    checked = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = HugeIcons.GlobalSearch,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(stringResource(R.string.search_picker_title))
+                    }
+                }
+                if (showReasoningTab) {
+                    ToggleSurface(
+                        checked = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = HugeIcons.Idea,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(stringResource(R.string.setting_provider_page_reasoning))
+                        }
+                    }
+                }
+            }
+
+            when (selectedTab) {
+                0 -> SearchPicker(
+                    enableSearch = enableSearch,
+                    settings = settings,
+                    onToggleSearch = onToggleSearch,
+                    onUpdateSearchService = onUpdateSearchService,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    model = chatModel,
+                    onDismiss = onDismissRequest,
+                )
+                1 -> ReasoningPickerContent(
+                    reasoningLevel = assistant.reasoningLevel,
+                    onUpdateReasoningLevel = {
+                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
+                    },
+                )
             }
         }
     }

@@ -308,7 +308,7 @@ private fun ChatListNormal(
                 start = 16.dp,
                 top = 16.dp + innerPadding.calculateTopPadding(),
                 end = 16.dp,
-                bottom = 32.dp + innerPadding.calculateBottomPadding(),
+                bottom = 4.dp + innerPadding.calculateBottomPadding(),
             ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
