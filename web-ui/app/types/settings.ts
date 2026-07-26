@@ -63,10 +63,13 @@ export interface LorebookProfile {
 export interface AssistantProfile {
   id: string;
   chatModelId?: string | null;
-  thinkingBudget?: number | null;
+  reasoningLevel?: string | null;
+  enableWebSearch?: boolean;
   mcpServers?: string[];
   modeInjectionIds?: string[];
   lorebookIds?: string[];
+  allowConversationPromptInjection?: boolean;
+  allowConversationSystemPrompt?: boolean;
   name: string;
   avatar?: AssistantAvatar;
   useAssistantAvatar?: boolean;
@@ -141,7 +144,6 @@ export interface Settings {
   themeId: string;
   developerMode: boolean;
   displaySetting: DisplaySetting;
-  enableWebSearch: boolean;
   favoriteModels: string[];
   chatModelId: string;
   assistantId: string;

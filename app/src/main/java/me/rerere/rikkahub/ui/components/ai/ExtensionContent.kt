@@ -2,9 +2,11 @@ package me.rerere.rikkahub.ui.components.ai
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
@@ -20,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.ExternalLink
+import com.composables.icons.lucide.Lucide
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Link01
 import me.rerere.rikkahub.R
@@ -33,9 +37,11 @@ fun ModeInjectionsContent(
     modeInjections: List<PromptInjection.ModeInjection>,
     selectedIds: Set<kotlin.uuid.Uuid>,
     onToggle: (kotlin.uuid.Uuid, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    onManage: (() -> Unit)? = null,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(modeInjections) { injection ->
@@ -52,6 +58,11 @@ fun ModeInjectionsContent(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
+        if (onManage != null) {
+            item {
+                ManageButton(onClick = onManage)
+            }
+        }
     }
 }
 
@@ -60,9 +71,11 @@ fun LorebooksContent(
     lorebooks: List<Lorebook>,
     selectedIds: Set<kotlin.uuid.Uuid>,
     onToggle: (kotlin.uuid.Uuid, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    onManage: (() -> Unit)? = null,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(lorebooks) { lorebook ->
@@ -88,6 +101,11 @@ fun LorebooksContent(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
+        if (onManage != null) {
+            item {
+                ManageButton(onClick = onManage)
+            }
+        }
     }
 }
 
@@ -96,9 +114,11 @@ fun SkillsContent(
     skills: List<SkillMetadata>,
     enabledSkills: Set<String>,
     onToggle: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    onManage: (() -> Unit)? = null,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(skills, key = { it.name }) { skill ->
@@ -122,6 +142,11 @@ fun SkillsContent(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
+        if (onManage != null) {
+            item {
+                ManageButton(onClick = onManage)
+            }
+        }
     }
 }
 
@@ -130,9 +155,11 @@ fun QuickMessagesContent(
     quickMessages: List<QuickMessage>,
     selectedIds: Set<kotlin.uuid.Uuid>,
     onToggle: (kotlin.uuid.Uuid, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    onManage: (() -> Unit)? = null,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(quickMessages, key = { it.id }) { quickMessage ->
@@ -157,6 +184,25 @@ fun QuickMessagesContent(
                     )
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ManageButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        TextButton(onClick = onClick) {
+            Icon(Lucide.ExternalLink, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(
+                text = stringResource(R.string.extension_content_manage),
+                modifier = Modifier.padding(start = 4.dp),
+                style = MaterialTheme.typography.labelMedium,
             )
         }
     }

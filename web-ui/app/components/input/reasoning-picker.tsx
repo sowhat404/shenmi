@@ -1,7 +1,8 @@
 import * as React from "react";
 
 import { useMutation } from "@tanstack/react-query";
-import { ChevronDown, Lightbulb, LightbulbOff, LoaderCircle, Sparkles } from "lucide-react";
+import { Brain, BrainCircuit, ChevronDown, Lightbulb, LightbulbOff, LoaderCircle, Sparkles } from "lucide-react";
+import { Slider as SliderPrimitive } from "radix-ui";
 import { useTranslation } from "react-i18next";
 
 import { useCurrentAssistant } from "~/hooks/use-current-assistant";
@@ -12,42 +13,22 @@ import { cn } from "~/lib/utils";
 import api from "~/services/api";
 import type { ProviderModel } from "~/types";
 import { Button } from "~/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "~/components/ui/popover";
-import { Input } from "~/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 
 import { PickerErrorAlert } from "./picker-error-alert";
 
-const PRESET_BUDGETS = {
-  OFF: 0,
-  AUTO: -1,
-  LOW: 1024,
-  MEDIUM: 16_000,
-  HIGH: 32_000,
-} as const;
+type ReasoningLevel = "off" | "auto" | "low" | "medium" | "high" | "xhigh";
 
-type ReasoningLevel = keyof typeof PRESET_BUDGETS;
+const REASONING_LEVELS: ReasoningLevel[] = ["off", "auto", "low", "medium", "high", "xhigh"];
+
+// Thumb size in px, keep in sync with `size-7` on the thumb below
+const THUMB_SIZE = 28;
 
 interface ReasoningPreset {
   key: ReasoningLevel;
   label: string;
   description: string;
-  budget: number;
 }
-
-const REASONING_PRESET_BUDGETS: Array<Pick<ReasoningPreset, "key" | "budget">> = [
-  { key: "OFF", budget: PRESET_BUDGETS.OFF },
-  { key: "AUTO", budget: PRESET_BUDGETS.AUTO },
-  { key: "LOW", budget: PRESET_BUDGETS.LOW },
-  { key: "MEDIUM", budget: PRESET_BUDGETS.MEDIUM },
-  { key: "HIGH", budget: PRESET_BUDGETS.HIGH },
-];
 
 export interface ReasoningPickerButtonProps {
   disabled?: boolean;
@@ -55,27 +36,62 @@ export interface ReasoningPickerButtonProps {
 }
 
 function isReasoningModel(model: ProviderModel | null): boolean {
-  if (!model) {
-    return false;
-  }
-
+  if (!model) return false;
   return (model.abilities ?? []).includes("REASONING");
 }
 
-function getReasoningLevel(budget: number | null | undefined): ReasoningLevel {
-  const value = budget ?? PRESET_BUDGETS.AUTO;
-  let closest = REASONING_PRESET_BUDGETS[0];
-  let minDistance = Number.POSITIVE_INFINITY;
-
-  for (const preset of REASONING_PRESET_BUDGETS) {
-    const distance = Math.abs(value - preset.budget);
-    if (distance < minDistance) {
-      minDistance = distance;
-      closest = preset;
-    }
+function ReasoningIcon({ level, className }: { level: ReasoningLevel; className?: string }) {
+  const props = { className: cn("size-4", className) };
+  switch (level) {
+    case "off":    return <LightbulbOff {...props} />;
+    case "auto":   return <Sparkles {...props} />;
+    case "low":    return <Lightbulb {...props} />;
+    case "medium": return <Lightbulb {...props} />;
+    case "high":   return <BrainCircuit {...props} />;
+    case "xhigh":  return <Brain {...props} />;
   }
+}
 
-  return closest.key;
+function ReasoningSlider({
+  value,
+  disabled,
+  onValueChange,
+  onValueCommit,
+}: {
+  value: number;
+  disabled?: boolean;
+  onValueChange: (index: number) => void;
+  onValueCommit: (index: number) => void;
+}) {
+  const max = REASONING_LEVELS.length - 1;
+  return (
+    <SliderPrimitive.Root
+      value={[value]}
+      min={0}
+      max={max}
+      step={1}
+      disabled={disabled}
+      onValueChange={([index]) => onValueChange(index)}
+      onValueCommit={([index]) => onValueCommit(index)}
+      className="relative flex h-7 w-full touch-none items-center select-none data-[disabled]:opacity-50"
+    >
+      <SliderPrimitive.Track className="relative h-7 w-full grow overflow-hidden rounded-full bg-muted">
+        <SliderPrimitive.Range className="absolute h-full bg-primary/75" />
+        {/* Tick dots inside the track, aligned with thumb travel positions */}
+        {REASONING_LEVELS.map((level, i) => (
+          <span
+            key={level}
+            className={cn(
+              "pointer-events-none absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full",
+              i <= value ? "bg-primary-foreground/60" : "bg-foreground/25",
+            )}
+            style={{ left: `calc(${THUMB_SIZE / 2}px + (100% - ${THUMB_SIZE}px) * ${i / max})` }}
+          />
+        ))}
+      </SliderPrimitive.Track>
+      <SliderPrimitive.Thumb className="block size-7 shrink-0 rounded-lg border-2 border-primary bg-background shadow-md ring-ring/50 transition-[box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none" />
+    </SliderPrimitive.Root>
+  );
 }
 
 export function ReasoningPickerButton({ disabled = false, className }: ReasoningPickerButtonProps) {
@@ -83,52 +99,30 @@ export function ReasoningPickerButton({ disabled = false, className }: Reasoning
   const { settings, currentAssistant } = useCurrentAssistant();
   const { currentModel } = useCurrentModel();
 
-  const [customValue, setCustomValue] = React.useState("");
-  const [customExpanded, setCustomExpanded] = React.useState(false);
-
   const canUse = Boolean(settings && currentAssistant && !disabled);
   const canReasoning = isReasoningModel(currentModel);
   const { open, error, setError, popoverProps } = usePickerPopover(canUse);
+
   const reasoningPresets = React.useMemo<ReasoningPreset[]>(
     () => [
-      {
-        key: "OFF",
-        label: t("reasoning.presets.off.label"),
-        description: t("reasoning.presets.off.description"),
-        budget: PRESET_BUDGETS.OFF,
-      },
-      {
-        key: "AUTO",
-        label: t("reasoning.presets.auto.label"),
-        description: t("reasoning.presets.auto.description"),
-        budget: PRESET_BUDGETS.AUTO,
-      },
-      {
-        key: "LOW",
-        label: t("reasoning.presets.low.label"),
-        description: t("reasoning.presets.low.description"),
-        budget: PRESET_BUDGETS.LOW,
-      },
-      {
-        key: "MEDIUM",
-        label: t("reasoning.presets.medium.label"),
-        description: t("reasoning.presets.medium.description"),
-        budget: PRESET_BUDGETS.MEDIUM,
-      },
-      {
-        key: "HIGH",
-        label: t("reasoning.presets.high.label"),
-        description: t("reasoning.presets.high.description"),
-        budget: PRESET_BUDGETS.HIGH,
-      },
+      { key: "off",    label: t("reasoning.presets.off.label"),    description: t("reasoning.presets.off.description") },
+      { key: "auto",   label: t("reasoning.presets.auto.label"),   description: t("reasoning.presets.auto.description") },
+      { key: "low",    label: t("reasoning.presets.low.label"),    description: t("reasoning.presets.low.description") },
+      { key: "medium", label: t("reasoning.presets.medium.label"), description: t("reasoning.presets.medium.description") },
+      { key: "high",   label: t("reasoning.presets.high.label"),   description: t("reasoning.presets.high.description") },
+      { key: "xhigh",  label: t("reasoning.presets.xhigh.label"),  description: t("reasoning.presets.xhigh.description") },
     ],
     [t],
   );
 
-  const currentBudget = currentAssistant?.thinkingBudget ?? PRESET_BUDGETS.AUTO;
-  const currentLevel = getReasoningLevel(currentBudget);
-  const currentPreset =
-    reasoningPresets.find((preset) => preset.key === currentLevel) ?? reasoningPresets[0];
+  const currentLevel = ((currentAssistant?.reasoningLevel as ReasoningLevel | null | undefined) ?? "auto");
+  const currentIndex = Math.max(0, REASONING_LEVELS.indexOf(currentLevel));
+
+  const [localIndex, setLocalIndex] = React.useState(currentIndex);
+
+  React.useEffect(() => {
+    setLocalIndex(currentIndex);
+  }, [currentIndex]);
 
   React.useEffect(() => {
     if (!canUse || !canReasoning) {
@@ -138,34 +132,28 @@ export function ReasoningPickerButton({ disabled = false, className }: Reasoning
 
   React.useEffect(() => {
     if (open) {
-      setCustomValue(String(currentBudget));
-      setCustomExpanded(false);
+      setLocalIndex(currentIndex);
     }
-  }, [currentBudget, open]);
+  }, [open]);
 
-  const updateThinkingBudgetMutation = useMutation({
-    mutationFn: ({
-      assistantId,
-      thinkingBudget,
-    }: {
-      assistantId: string;
-      thinkingBudget: number;
-    }) =>
+  const updateReasoningLevelMutation = useMutation({
+    mutationFn: ({ assistantId, reasoningLevel }: { assistantId: string; reasoningLevel: ReasoningLevel }) =>
       api.post<{ status: string }>("settings/assistant/thinking-budget", {
         assistantId,
-        thinkingBudget,
+        reasoningLevel,
       }),
     onError: (updateError) => {
       setError(extractErrorMessage(updateError, t("reasoning.update_failed")));
+      setLocalIndex(currentIndex);
     },
     onSuccess: () => setError(null),
   });
 
-  const loading = updateThinkingBudgetMutation.isPending;
+  const loading = updateReasoningLevelMutation.isPending;
+  const localLevel = REASONING_LEVELS[localIndex] ?? currentLevel;
+  const localPreset = reasoningPresets.find((p) => p.key === localLevel) ?? reasoningPresets[1];
 
-  if (!canReasoning) {
-    return null;
-  }
+  if (!canReasoning) return null;
 
   return (
     <Popover {...popoverProps}>
@@ -180,7 +168,8 @@ export function ReasoningPickerButton({ disabled = false, className }: Reasoning
             className,
           )}
         >
-          <span>{currentPreset.label}</span>
+          <ReasoningIcon level={localLevel} className="size-3.5" />
+          <span className="hidden sm:block">{localPreset.label}</span>
           <span className="hidden sm:block">
             {loading ? (
               <LoaderCircle className="size-3.5 animate-spin" />
@@ -191,112 +180,34 @@ export function ReasoningPickerButton({ disabled = false, className }: Reasoning
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-[min(92vw,24rem)] gap-0 p-0">
-        <PopoverHeader className="border-b px-6 py-4">
-          <PopoverTitle>{t("reasoning.title")}</PopoverTitle>
-          <PopoverDescription>{t("reasoning.description")}</PopoverDescription>
-        </PopoverHeader>
+      <PopoverContent align="end" className="w-[min(92vw,20rem)] space-y-3 px-4 py-4">
+        <PickerErrorAlert error={error} />
 
-        <div className="max-h-[70svh] space-y-3 overflow-y-auto px-4 py-4">
-          <PickerErrorAlert error={error} />
+        {/* Faster / Smarter labels */}
+        <div className="flex items-center justify-between text-sm font-medium text-foreground">
+          <span>{t("reasoning.faster")}</span>
+          <span>{t("reasoning.smarter")}</span>
+        </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {reasoningPresets.map((preset) => {
-              const selected = preset.key === currentLevel;
-              const switching =
-                updateThinkingBudgetMutation.isPending &&
-                updateThinkingBudgetMutation.variables?.thinkingBudget === preset.budget;
+        {/* Thick slider with tick dots */}
+        <ReasoningSlider
+          value={localIndex}
+          disabled={disabled || loading}
+          onValueChange={setLocalIndex}
+          onValueCommit={(index) => {
+            if (!currentAssistant) return;
+            updateReasoningLevelMutation.mutate({
+              assistantId: currentAssistant.id,
+              reasoningLevel: REASONING_LEVELS[index],
+            });
+          }}
+        />
 
-              return (
-                <Button
-                  key={preset.key}
-                  type="button"
-                  size="sm"
-                  variant={selected ? "default" : "outline"}
-                  className={cn(
-                    "h-8 w-full justify-start rounded-full px-2 text-xs",
-                    selected && "shadow-none",
-                  )}
-                  disabled={disabled || loading}
-                  onClick={() => {
-                    if (!currentAssistant) return;
-                    updateThinkingBudgetMutation.mutate({
-                      assistantId: currentAssistant.id,
-                      thinkingBudget: preset.budget,
-                    });
-                  }}
-                >
-                  {preset.key === "OFF" ? (
-                    <LightbulbOff className="size-3.5" />
-                  ) : preset.key === "AUTO" ? (
-                    <Sparkles className="size-3.5" />
-                  ) : (
-                    <Lightbulb className="size-3.5" />
-                  )}
-                  <span className="truncate">{preset.label}</span>
-                  <span className="ml-auto flex size-3.5 items-center justify-center">
-                    {switching ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-
-          <div className="text-muted-foreground h-4 truncate text-xs">
-            {currentPreset.description}
-          </div>
-
-          <div className="space-y-2 px-1 py-1">
-            <button
-              type="button"
-              className="hover:bg-muted flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs font-medium transition"
-              onClick={() => {
-                setCustomExpanded((prev) => !prev);
-              }}
-            >
-              <span>{t("reasoning.custom_budget")}</span>
-              <ChevronDown
-                className={cn("size-3.5 transition-transform", customExpanded && "rotate-180")}
-              />
-            </button>
-
-            {customExpanded ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <Input
-                    className="h-8"
-                    value={customValue}
-                    onChange={(event) => {
-                      setCustomValue(event.target.value);
-                    }}
-                    placeholder={t("reasoning.custom_budget_placeholder")}
-                    inputMode="numeric"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={disabled || loading}
-                    onClick={() => {
-                      const parsedValue = Number.parseInt(customValue.trim(), 10);
-                      if (Number.isNaN(parsedValue)) {
-                        setError(t("reasoning.invalid_integer"));
-                        return;
-                      }
-                      if (!currentAssistant) return;
-                      updateThinkingBudgetMutation.mutate({
-                        assistantId: currentAssistant.id,
-                        thinkingBudget: parsedValue,
-                      });
-                    }}
-                  >
-                    {t("reasoning.apply")}
-                  </Button>
-                </div>
-                <div className="text-muted-foreground text-xs">{t("reasoning.examples")}</div>
-              </>
-            ) : null}
-          </div>
+        {/* Current preset hint */}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{localPreset.label}</span>
+          {" · "}
+          {localPreset.description}
         </div>
       </PopoverContent>
     </Popover>

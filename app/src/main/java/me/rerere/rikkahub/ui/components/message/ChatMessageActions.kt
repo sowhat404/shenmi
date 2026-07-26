@@ -10,13 +10,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,7 +57,9 @@ import me.rerere.rikkahub.ui.theme.ClaudeIcons
 import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.utils.copyMessageToClipboard
 import me.rerere.rikkahub.utils.extractQuotedContentAsText
+import me.rerere.rikkahub.utils.removeBracketedContent
 import me.rerere.rikkahub.utils.toLocalString
+import me.rerere.rikkahub.utils.toMessageTimeString
 import java.util.Locale
 
 @Composable
@@ -73,6 +75,7 @@ fun ColumnScope.ChatMessageActionButtons(
     onClearTranslation: (UIMessage) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val settings = LocalSettings.current
     var isPendingDelete by remember { mutableStateOf(false) }
     var showTranslateDialog by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
@@ -94,6 +97,8 @@ fun ColumnScope.ChatMessageActionButtons(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(top = 2.dp)
     ) {
+        val actionIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+
         ActionCircleButton(
             icon = {
                 Icon(ClaudeIcons.Copy, contentDescription = stringResource(R.string.copy))
@@ -169,6 +174,15 @@ fun ColumnScope.ChatMessageActionButtons(
                 onOpenActionSheet()
             }
         )
+
+        if (settings.displaySetting.showDateTimeInMessage) {
+            Text(
+                text = message.createdAt.toJavaLocalDateTime().toMessageTimeString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                maxLines = 1,
+            )
+        }
     }
 
     // Translation dialog
@@ -254,7 +268,7 @@ fun ChatMessageActionsSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)),
     ) {
         Column(
             modifier = Modifier

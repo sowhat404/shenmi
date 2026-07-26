@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -125,8 +126,12 @@ private fun ReasoningContent(
     expandState: ReasoningCardState,
     scrollState: ScrollState,
     fadeHeight: Float,
+    loading: Boolean,
 ) {
     val isPreview = expandState == ReasoningCardState.Preview
+    val reasoningTextStyle = MaterialTheme.typography.bodySmall.copy(
+        fontFamily = LocalTextStyle.current.fontFamily,
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -161,16 +166,25 @@ private fun ReasoningContent(
                 }
             }
     ) {
-        SelectionContainer {
+        val reasoningContent = @Composable {
             MarkdownBlock(
                 content = reasoning.reasoning.replaceRegexes(
                     assistant = assistant,
                     scope = AssistantAffectScope.ASSISTANT,
                     visual = true,
                 ),
-                style = MaterialTheme.typography.bodySmall,
+                style = reasoningTextStyle,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+        // 流式生成期间不启用 SelectionContainer，避免 selectable 列表并发修改导致的
+        // ConcurrentModificationException（详见 ChatMessage.kt 文本块同样处理）。
+        if (loading) {
+            reasoningContent()
+        } else {
+            SelectionContainer {
+                reasoningContent()
+            }
         }
     }
 }
@@ -186,6 +200,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
     val (state, loading) = rememberReasoningState(reasoning)
     val thinkingTitle = reasoning.reasoning.extractThinkingTitle()
     val showThinkingTitle = loading && thinkingTitle != null
+    val chatFontFamily = LocalTextStyle.current.fontFamily
     val collapsedPreview = remember(reasoning.reasoning) {
         reasoning.reasoning
             .replace(Regex("<[^>]+>"), " ")
@@ -229,7 +244,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
                         R.string.deep_thinking_seconds,
                         state.duration.toDouble(DurationUnit.SECONDS).toFloat()
                     ),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleSmall.copy(fontFamily = chatFontFamily),
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.shimmer(isLoading = loading),
                 )
@@ -239,7 +254,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
             if (!isCollapsed && showThinkingTitle && state.duration > 0.seconds) {
                 Text(
                     text = state.duration.toString(DurationUnit.SECONDS, 1),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = chatFontFamily),
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.shimmer(isLoading = loading),
                 )
@@ -254,6 +269,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
                 expandState = state.expandState,
                 scrollState = state.scrollState,
                 fadeHeight = fadeHeight,
+                loading = loading,
             )
         },
     )
@@ -262,6 +278,7 @@ fun ChainOfThoughtScope.ChatMessageReasoningStep(
 
 @Composable
 private fun ReasoningTitle(title: String) {
+    val chatFontFamily = LocalTextStyle.current.fontFamily
     AnimatedContent(
         targetState = title,
         transitionSpec = {
@@ -272,7 +289,7 @@ private fun ReasoningTitle(title: String) {
     ) {
         Text(
             text = it,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleSmall.copy(fontFamily = chatFontFamily),
             color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier
                 .padding(horizontal = 4.dp)

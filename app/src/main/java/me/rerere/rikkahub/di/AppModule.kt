@@ -3,17 +3,17 @@ package me.rerere.rikkahub.di
 import com.google.firebase.Firebase
 import com.google.firebase.analytics.analytics
 import com.google.firebase.crashlytics.crashlytics
-import com.google.firebase.remoteconfig.remoteConfig
 import kotlinx.serialization.json.Json
 import me.rerere.highlight.Highlighter
 import me.rerere.rikkahub.AppScope
-import me.rerere.rikkahub.data.ai.AILoggingManager
-import me.rerere.rikkahub.data.ai.tools.LocalTools
+import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.service.ChatNotificationManager
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
 import me.rerere.rikkahub.utils.JsonInstant
+import me.rerere.rikkahub.utils.SoundEffectPlayer
 import me.rerere.rikkahub.utils.UpdateChecker
 import me.rerere.rikkahub.web.WebServerManager
 import me.rerere.tts.provider.TTSManager
@@ -31,7 +31,7 @@ val appModule = module {
     }
 
     single {
-        LocalTools(get(), get())
+        LocalTools(get(), get(), get(), get())
     }
 
     single {
@@ -55,21 +55,29 @@ val appModule = module {
     }
 
     single {
-        Firebase.remoteConfig
-    }
-
-    single {
         Firebase.analytics
     }
 
     single {
-        AILoggingManager()
+        SoundEffectPlayer(get())
+    }
+
+    // 生成通知与业务解耦：ChatService 只发事件，通知由这里消费；
+    // createdAtStart 保证进程启动即订阅，否则后台生成的事件会因无订阅者而丢失
+    single(createdAtStart = true) {
+        ChatNotificationManager(
+            context = get(),
+            appScope = get(),
+            eventBus = get(),
+            settingsStore = get(),
+        )
     }
 
     single {
         ChatService(
             context = get(),
             appScope = get(),
+            appEventBus = get(),
             settingsStore = get(),
             conversationRepo = get(),
             memoryRepository = get(),
@@ -79,7 +87,9 @@ val appModule = module {
             localTools = get(),
             mcpManager = get(),
             filesManager = get(),
-            skillManager = get()
+            skillManager = get(),
+            workspaceRepository = get(),
+            folderRepository = get()
         )
     }
 
@@ -89,6 +99,7 @@ val appModule = module {
             appScope = get(),
             chatService = get(),
             conversationRepo = get(),
+            folderRepo = get(),
             settingsStore = get(),
             filesManager = get()
         )

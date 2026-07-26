@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +53,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
@@ -86,14 +87,16 @@ import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.richtext.buildMarkdownPreviewHtml
+import me.rerere.rikkahub.ui.components.webview.WebViewContentCache
 import me.rerere.rikkahub.ui.components.ui.ChainOfThought
 import me.rerere.rikkahub.ui.components.ui.Favicon
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.theme.LocalChatFontFamily
+import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
 import me.rerere.rikkahub.ui.theme.extendColors
-import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.utils.JsonInstant
-import me.rerere.rikkahub.utils.base64Encode
 import me.rerere.rikkahub.utils.copyMessageToClipboard
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.urlDecode
@@ -123,14 +126,11 @@ fun ChatMessage(
 ) {
     val message = node.messages[node.selectIndex]
     val settings = LocalSettings.current.displaySetting
+    val chatFontFamily = LocalChatFontFamily.current ?: rememberChatFontFamily(settings)
     val textStyle = LocalTextStyle.current.copy(
         fontSize = LocalTextStyle.current.fontSize * settings.fontSizeRatio,
         lineHeight = LocalTextStyle.current.lineHeight * settings.fontSizeRatio,
-        fontFamily = when (settings.chatFontFamily) {
-            ChatFontFamily.DEFAULT -> FontFamily.Default
-            ChatFontFamily.SERIF -> FontFamily.Serif
-            ChatFontFamily.MONOSPACE -> FontFamily.Monospace
-        }
+        fontFamily = chatFontFamily
     )
     val userTextStyle = textStyle.copy(
         fontSize = textStyle.fontSize * 0.94f,
@@ -271,11 +271,17 @@ fun ChatMessage(
             )
         }
 
+        EditedFilesList(
+            parts = message.parts,
+            assistant = assistant,
+        )
+
         if (showNerdLine) {
             ProvideTextStyle(textStyle) {
                 ChatMessageNerdLine(message = message)
             }
         }
+
     }
     if (showActionsSheet) {
         ChatMessageActionsSheet(
@@ -305,7 +311,8 @@ fun ChatMessage(
                         markdown = textContent,
                         colorScheme = colorScheme
                     )
-                    navController.navigate(Screen.WebView(content = htmlContent.base64Encode()))
+                    val contentId = WebViewContentCache.store(context.cacheDir, htmlContent)
+                    navController.navigate(Screen.WebView(contentId = contentId))
                 }
             },
             onDismissRequest = {
@@ -414,6 +421,9 @@ private fun MessagePartsBlock(
                         flatWhenSingleStep = isSingleThinkingStep,
                         steps = block.steps,
                         collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                        cardColors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                        ),
                     ) { step ->
                         when (step) {
                             is ThinkingStep.ReasoningStep -> {
@@ -445,11 +455,16 @@ private fun MessagePartsBlock(
             is MessagePartBlock.ContentBlock -> key(block.index) {
                 when (val part = block.part) {
                     is UIMessagePart.Text -> {
-                        SelectionContainer {
+                        val textContent = @Composable {
                             if (role == MessageRole.USER) {
                                 Column(
                                     modifier = Modifier
                                         .animateContentSize()
+                                        .then(
+                                            onUserMessageClick?.let { onClick ->
+                                                Modifier.clickable(onClick = onClick)
+                                            } ?: Modifier
+                                        )
                                 ) {
                                     MarkdownBlock(
                                         content = part.text.replaceRegexes(
@@ -464,8 +479,8 @@ private fun MessagePartsBlock(
                                 if (settings.displaySetting.showAssistantBubble) {
                                     Surface(
                                         modifier = Modifier.animateContentSize(),
-                                        shape = MaterialTheme.shapes.medium,
-                                        tonalElevation = 2.dp,
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                             MarkdownBlock(
@@ -490,6 +505,18 @@ private fun MessagePartsBlock(
                                             .animateContentSize()
                                     )
                                 }
+                            }
+                        }
+
+                        // 流式生成期间不启用 SelectionContainer：Markdown 在不断重渲染，
+                        // 内部可选择的 Text 会频繁注册/注销，与 Compose 选择工具栏在绘制阶段
+                        // 对 selectable 列表的排序产生并发修改，导致 ConcurrentModificationException。
+                        // 生成结束后内容稳定，再启用文本选择。
+                        if (loading) {
+                            textContent()
+                        } else {
+                            SelectionContainer {
+                                textContent()
                             }
                         }
                     }
@@ -552,13 +579,25 @@ private fun MessagePartsBlock(
                     }
 
                     is UIMessagePart.Image -> {
-                        ZoomableAsyncImage(
-                            model = part.url,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .clip(MaterialTheme.shapes.medium)
-                                .height(72.dp)
-                        )
+                        val isImageLoading =
+                            part.url.isBlank() || part.url.matches(Regex("^data:image/[^;]*;base64,\\s*$"))
+                        if (isImageLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .shimmer(isLoading = true)
+                            )
+                        } else {
+                            ZoomableAsyncImage(
+                                model = part.url,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .height(72.dp)
+                            )
+                        }
                     }
 
                     is UIMessagePart.Document -> {

@@ -88,40 +88,6 @@ val DEFAULT_PROVIDERS = listOf(
                 text = "支持gpt, claude, gemini等200+模型"
             )
         },
-        models = listOf(
-            Model(
-                id = Uuid.parse("ea7b9574-e590-42ac-a9ac-01e3aa213f4f"),
-                modelId = "gpt-5",
-                displayName = "GPT 5",
-                inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
-            ),
-            Model(
-                id = Uuid.parse("5c33502d-2307-40bd-83fc-133f504bb0c9"),
-                modelId = "claude-sonnet-4-5-20250929",
-                displayName = "Claude Sonnet 4.5",
-                inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
-            ),
-            Model(
-                id = Uuid.parse("64081a31-4331-4ead-91bc-96e05497431a"),
-                modelId = "DeepSeek-V3.2-Exp",
-                displayName = "DeepSeek V3.2 Exp",
-                inputModalities = listOf(Modality.TEXT),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(ModelAbility.TOOL),
-            ),
-            Model(
-                id = Uuid.parse("71d7f143-4ce1-49b5-b70d-7a6620a4e716"),
-                modelId = "qwen3-max",
-                displayName = "Qwen3 Max",
-                inputModalities = listOf(Modality.TEXT),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(ModelAbility.TOOL),
-            ),
-        )
     ),
     ProviderSetting.OpenAI(
         id = Uuid.parse("56a94d29-c88b-41c5-8e09-38a7612d6cf8"),
@@ -137,24 +103,6 @@ val DEFAULT_PROVIDERS = listOf(
                 """.trimIndent()
             )
         },
-        models = listOf(
-            Model(
-                id = Uuid.parse("dd82297e-4237-4d3c-85b3-58d5c7084fc2"),
-                modelId = "Qwen/Qwen3-8B",
-                displayName = "Qwen3-8B",
-                inputModalities = listOf(Modality.TEXT),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
-            ),
-            Model(
-                id = Uuid.parse("e4b836cd-6cbe-4350-b9e5-8c3b2d448b00"),
-                modelId = "THUDM/GLM-4.1V-9B-Thinking",
-                displayName = "GLM-4.1V-9B",
-                inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
-                outputModalities = listOf(Modality.TEXT),
-                abilities = listOf(),
-            ),
-        ),
         balanceOption = BalanceOption(
             enabled = true,
             apiPath = "/user/info",
@@ -260,26 +208,6 @@ val DEFAULT_PROVIDERS = listOf(
         builtIn = true
     ),
     ProviderSetting.OpenAI(
-        id = Uuid.parse("89e67540-32fe-4c62-9970-2e9aed9bd59d"),
-        name = "JuheNext",
-        baseUrl = "https://api.juheai.top/v1",
-        apiKey = "",
-        enabled = false,
-        builtIn = true,
-        description = {
-            Text(
-                text = buildAnnotatedString {
-                    append("一站式API中转平台, 官网：")
-                    withLink(LinkAnnotation.Url("https://api.juheai.top/register?aff=qG7E")) {
-                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
-                            append("https://api.juheai.top")
-                        }
-                    }
-                }
-            )
-        }
-    ),
-    ProviderSetting.OpenAI(
         id = Uuid.parse("da93779f-3956-48cc-82ef-67bb482eaaf7"),
         name = "302.AI",
         baseUrl = "https://api.302.ai/v1",
@@ -315,6 +243,48 @@ val DEFAULT_PROVIDERS = listOf(
         enabled = false,
         builtIn = true,
         useResponseApi = true,
+    ),
+    ProviderSetting.OpenAI(
+        id = Uuid.parse("aecf04fd-cb5c-4582-aed2-e8bf393923fd"),
+        name = "随想AI网关",
+        baseUrl = "https://sui-xiang.com/v1",
+        apiKey = "",
+        enabled = false,
+        builtIn = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("可靠高效的 API 中继服务，提供 Claude、Codex、Gemini 等中继服务。注重隐私·无数据倒卖·无模型掺水，充值额度 1:1，按量付费。多线路冗余、跨区域容灾、自动故障切换，长链路 SSE 不中断。\n")
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://sui-xiang.com")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://sui-xiang.com")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text(
+                text = "Claude、Codex、Gemini 等中继服务，1:1 充值"
+            )
+        },
+    ),
+    ProviderSetting.Claude(
+        id = Uuid.parse("b4deabea-20fb-4101-a74c-65679c7e4754"),
+        name = "MiniMax",
+        baseUrl = "https://api.minimaxi.com/anthropic/v1",
+        apiKey = "",
+        enabled = false,
+        builtIn = true,
+    ),
+    ProviderSetting.OpenAI(
+        id = Uuid.parse("a2bafe83-eaf8-47bf-a8c7-3dd82d89f637"),
+        name = "MIMO",
+        baseUrl = "https://api.xiaomimimo.com/v1",
+        apiKey = "",
+        enabled = false,
+        builtIn = true,
     ),
     ProviderSetting.OpenAI(
         id = Uuid.parse("53027b08-1b58-43d5-90ed-29173203e3d8"),

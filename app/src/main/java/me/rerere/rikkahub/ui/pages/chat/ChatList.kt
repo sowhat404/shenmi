@@ -67,7 +67,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalScrollCaptureInProgress
 import androidx.compose.ui.res.stringResource
@@ -87,7 +90,6 @@ import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
@@ -98,6 +100,7 @@ import me.rerere.rikkahub.ui.components.ui.ListSelectableItem
 import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
+import me.rerere.rikkahub.ui.theme.ChatFontProvider
 import me.rerere.rikkahub.utils.plus
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
@@ -112,6 +115,7 @@ fun ChatList(
     conversation: Conversation,
     state: LazyListState,
     loading: Boolean,
+    processingStatus: String? = null,
     previewMode: Boolean,
     settings: Settings,
     hazeState: HazeState,
@@ -130,6 +134,7 @@ fun ChatList(
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
+    onConversationSystemPromptChange: ((String?) -> Unit)? = null,
 ) {
     AnimatedContent(
         targetState = previewMode,
@@ -153,6 +158,7 @@ fun ChatList(
                 conversation = conversation,
                 state = state,
                 loading = loading,
+                processingStatus = processingStatus,
                 settings = settings,
                 hazeState = hazeState,
                 errors = errors,
@@ -170,6 +176,7 @@ fun ChatList(
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
                 onToggleFavorite = onToggleFavorite,
+                onConversationSystemPromptChange = onConversationSystemPromptChange,
             )
         }
     }
@@ -181,6 +188,7 @@ private fun ChatListNormal(
     conversation: Conversation,
     state: LazyListState,
     loading: Boolean,
+    processingStatus: String? = null,
     settings: Settings,
     hazeState: HazeState,
     errors: List<ChatError>,
@@ -198,12 +206,32 @@ private fun ChatListNormal(
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
+    onConversationSystemPromptChange: ((String?) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
     var isRecentScroll by remember { mutableStateOf(false) }
     val conversationUpdated by rememberUpdatedState(conversation)
     val density = LocalDensity.current
+    val activity = LocalContext.current as? me.rerere.rikkahub.RouteActivity
+
+    DisposableEffect(Unit) {
+        val listener: (Boolean) -> Boolean = { isVolumeUp ->
+            if (settings.displaySetting.enableVolumeKeyScroll) {
+                val bottomPaddingPx = with(density) {
+                    (32.dp + innerPadding.calculateBottomPadding()).toPx()
+                }
+                val scrollAmount = (state.layoutInfo.viewportSize.height - bottomPaddingPx) *
+                    settings.displaySetting.volumeKeyScrollRatio
+                scope.launch { state.scrollBy(if (isVolumeUp) -scrollAmount else scrollAmount) }
+                true
+            } else false
+        }
+        activity?.volumeKeyListeners?.add(listener)
+        onDispose {
+            activity?.volumeKeyListeners?.remove(listener)
+        }
+    }
 
     fun List<LazyListItemInfo>.isAtBottom(): Boolean {
         val lastItem = lastOrNull() ?: return false
@@ -231,6 +259,16 @@ private fun ChatListNormal(
             onDismiss = { showSizeWarningDialog = false }
         )
     }
+
+    val assistant = remember(settings.assistants, conversation.assistantId) {
+        settings.getAssistantById(conversation.assistantId)
+    }
+    val modelById = remember(settings.providers) {
+        settings.providers
+            .flatMap { it.models }
+            .associateBy { it.id }
+    }
+    val lastMessageIndex = conversation.messageNodes.lastIndex
 
     Box(
         modifier = Modifier
@@ -263,6 +301,7 @@ private fun ChatListNormal(
             }
         }
 
+        ChatFontProvider(displaySetting = settings.displaySetting) {
         LazyColumn(
             state = state,
             contentPadding = PaddingValues(
@@ -296,9 +335,9 @@ private fun ChatListNormal(
                     ) {
                         ChatMessage(
                             node = node,
-                            model = node.currentMessage.modelId?.let { settings.findModelById(it) },
-                            assistant = settings.getAssistantById(conversation.assistantId),
-                            loading = loading && index == conversation.messageNodes.lastIndex,
+                            model = node.currentMessage.modelId?.let(modelById::get),
+                            assistant = assistant,
+                            loading = loading && index == lastMessageIndex,
                             onRegenerate = {
                                 onRegenerate(node.currentMessage)
                             },
@@ -328,23 +367,42 @@ private fun ChatListNormal(
                             onClearTranslation = onClearTranslation,
                             onToolApproval = onToolApproval,
                             onToolAnswer = onToolAnswer,
-                            lastMessage = index == conversation.messageNodes.lastIndex,
+                            lastMessage = index == lastMessageIndex,
                         )
                     }
                 }
             }
 
+            if (!loading && assistant?.allowConversationSystemPrompt == true && onConversationSystemPromptChange != null) {
+                item(key = "ConversationSystemPrompt") {
+                    ConversationSystemPromptButton(
+                        customSystemPrompt = conversation.customSystemPrompt,
+                        onSystemPromptChange = onConversationSystemPromptChange,
+                    )
+                }
+            }
+
             if (loading) {
                 item(LoadingIndicatorKey) {
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.CenterStart,
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         RabbitLoadingIndicator(
                             modifier = Modifier.size(28.dp)
                         )
+                        AnimatedVisibility(
+                            visible = processingStatus != null,
+                        ) {
+                            Text(
+                                text = processingStatus ?: "",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -357,6 +415,8 @@ private fun ChatListNormal(
                         .height(5.dp)
                 )
             }
+            }
+        }
         }
 
         Box(
@@ -564,7 +624,8 @@ private fun ChatListPreview(
     Column(
         modifier = Modifier
             .padding(top = innerPadding.calculateTopPadding())
-            .fillMaxSize(),
+            .fillMaxSize()
+            .hazeSource(state = hazeState),
     ) {
         // 搜索框
         OutlinedTextField(

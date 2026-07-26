@@ -147,13 +147,14 @@ data class UIMessage(
         } ?: this
     }
 
-    fun summaryAsText(): String {
-        return "[${role.name}]: " + parts.joinToString(separator = "\n") { part ->
+    fun summaryAsText(maxLength: Int = Int.MAX_VALUE): String {
+        val text = "[${role.name}]: " + parts.joinToString(separator = "\n") { part ->
             when (part) {
                 is UIMessagePart.Text -> part.text
                 else -> ""
             }
         }
+        return if (text.length > maxLength) text.take(maxLength) + "..." else text
     }
 
     fun toText() = parts.joinToString(separator = "\n") { part ->
@@ -222,7 +223,7 @@ fun List<UIMessage>.handleMessageChunk(chunk: MessageChunk, model: Model? = null
         "messages must not be empty"
     }
     val choice = chunk.choices.getOrNull(0) ?: return this
-    val message = choice.delta ?: choice.message ?: throw Exception("delta/message is null")
+    val message = choice.delta ?: choice.message ?: return this
     if (this.last().role != message.role) {
         return this + (UIMessage(modelId = model?.id, role = message.role, parts = emptyList()) + chunk)
     } else {
@@ -268,51 +269,6 @@ fun List<UIMessagePart>.isEmptyUIMessage(): Boolean {
     }
 }
 
-fun List<UIMessage>.limitContext(size: Int): List<UIMessage> {
-    if (size <= 0 || this.size <= size) return this
-
-    val startIndex = this.size - size
-    var adjustedStartIndex = startIndex
-
-    // 循环往前查找，直到满足所有依赖条件
-    var needsAdjustment = true
-    val visitedIndices = mutableSetOf<Int>()
-
-    while (needsAdjustment && adjustedStartIndex > 0) {
-        needsAdjustment = false
-
-        // 防止无限循环
-        if (adjustedStartIndex in visitedIndices) break
-        visitedIndices.add(adjustedStartIndex)
-
-        val currentMessage = this[adjustedStartIndex]
-
-        // 如果当前消息包含已执行的tool（有output），往前查找对应的tool call
-        if (currentMessage.getTools().any { it.isExecuted }) {
-            for (i in adjustedStartIndex - 1 downTo 0) {
-                if (this[i].getTools().any { !it.isExecuted }) {
-                    adjustedStartIndex = i
-                    needsAdjustment = true
-                    break
-                }
-            }
-        }
-
-        // 如果当前消息包含未执行的tool call，往前查找对应的用户消息
-        if (currentMessage.getTools().any { !it.isExecuted }) {
-            for (i in adjustedStartIndex - 1 downTo 0) {
-                if (this[i].role == MessageRole.USER) {
-                    adjustedStartIndex = i
-                    needsAdjustment = true
-                    break
-                }
-            }
-        }
-    }
-
-    return this.subList(adjustedStartIndex, this.size)
-}
-
 @Serializable
 sealed class ToolApprovalState {
     @Serializable
@@ -334,6 +290,17 @@ sealed class ToolApprovalState {
     @Serializable
     @SerialName("answered")
     data class Answered(val answer: String) : ToolApprovalState()
+}
+
+fun ToolApprovalState.canResumeToolExecution(): Boolean {
+    return when (this) {
+        ToolApprovalState.Approved -> true
+        is ToolApprovalState.Denied -> true
+        is ToolApprovalState.Answered -> true
+        ToolApprovalState.Auto,
+        ToolApprovalState.Pending,
+            -> false
+    }
 }
 
 @Serializable
@@ -441,6 +408,9 @@ sealed class UIMessagePart {
         /** Whether the tool is pending user approval */
         val isPending: Boolean get() = approvalState is ToolApprovalState.Pending
 
+        /** Whether generation can resume and handle this tool immediately */
+        val canResumeExecution: Boolean get() = !isExecuted && approvalState.canResumeToolExecution()
+
         /** Parse input string as JsonElement */
         fun inputAsJson(): JsonElement = runCatching {
             json.parseToJsonElement(input.ifBlank { "{}" })
@@ -514,6 +484,27 @@ fun UIMessage.finishReasoning(): UIMessage {
             }
         }
     )
+}
+
+fun UIMessage.finishPendingTools(
+    transform: (UIMessagePart.Tool) -> UIMessagePart.Tool
+): UIMessage {
+    val updatedParts = parts.map { part ->
+        if (part is UIMessagePart.Tool && !part.isExecuted) {
+            transform(part)
+        } else {
+            part
+        }
+    }
+
+    if (updatedParts == parts) {
+        return this
+    }
+
+    return copy(
+        parts = updatedParts,
+        finishedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    ).finishReasoning()
 }
 
 /**
