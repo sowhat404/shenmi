@@ -24,8 +24,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -35,7 +36,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.window.DialogProperties
 import com.dokar.sonner.ToastType
 import dev.chrisbanes.haze.HazeState
@@ -147,17 +149,22 @@ fun ChatInput(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
-    // 键盘弹出时让底部两角变直角，贴合 IME
-    val imeVisible = WindowInsets.isImeVisible
-    val claudeShape = RoundedCornerShape(28.dp)
-    val containerShape = if (imeVisible) {
-        claudeShape.copy(
-            bottomStart = CornerSize(0.dp),
-            bottomEnd = CornerSize(0.dp),
-        )
-    } else {
-        claudeShape
-    }
+    // 底部圆角/外边距跟随 IME 实际动画进度渐变（而非 isImeVisible 布尔瞬切），
+    // 否则键盘起降瞬间卡片底缘轮廓会突变，看起来像高度跳变。
+    // 进度定义：卡片离开"停靠在导航栏上"的静息位后，前 56dp 行程内完成圆角->直角过渡
+    val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val dockRampPx = with(density) { 56.dp.toPx() }
+    val liftPx = (imeBottomPx - navBottomPx).coerceAtLeast(0)
+    val dockFraction = (liftPx / dockRampPx).coerceIn(0f, 1f)
+    val bottomCorner = lerp(28.dp, 0.dp, dockFraction)
+    val containerShape = RoundedCornerShape(
+        topStart = 28.dp,
+        topEnd = 28.dp,
+        bottomEnd = bottomCorner,
+        bottomStart = bottomCorner,
+    )
 
     fun sendMessage() {
         focusManager.clearFocus(force = true)
@@ -209,7 +216,7 @@ fun ChatInput(
             modifier = modifier
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(start = 18.dp, top = 8.dp, end = 18.dp, bottom = if (imeVisible) 0.dp else 8.dp),
+                .padding(start = 18.dp, top = 8.dp, end = 18.dp, bottom = lerp(8.dp, 0.dp, dockFraction)),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Surface(
