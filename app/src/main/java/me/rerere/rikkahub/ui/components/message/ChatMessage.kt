@@ -55,6 +55,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
@@ -158,12 +159,17 @@ fun ChatMessage(
             )
         }
         if (message.role == MessageRole.USER) {
+            // 对照官方 App 截图取色：底 #F1EEE7、1px 描边 #D1CFC9(≈onSurface 16%)、正文近黑；
+            // 描边按实机观感比官方再加深到 24%。
+            // contentColor 必须显式给：Claude 主题里 surfaceContainerHigh 与 surfaceVariant 同值，
+            // 靠 contentColorFor 反查会落到 onSurfaceVariant，正文被染成棕灰。
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 border = BorderStroke(
-                    0.6.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.9f)
+                    Dp.Hairline,
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
                 ),
                 shadowElevation = 0.dp,
                 tonalElevation = 0.dp,
@@ -348,7 +354,7 @@ private fun ClaudeStyleDisclaimer(modifier: Modifier = Modifier) {
         Text(
             text = "Claude can make mistakes.\nPlease double-check responses.",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 220.dp),

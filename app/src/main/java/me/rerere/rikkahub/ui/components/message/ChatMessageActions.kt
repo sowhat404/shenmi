@@ -241,10 +241,14 @@ private fun ActionCircleButton(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.32f)
             }
+            // 官方 App 图标字形约 15dp(原来 24dp 塞进 22dp 框≈19dp，偏大)，收进 18dp 框；
+            // 外框和间距不动，节距仍是官方的 38dp。
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalContentColor provides tint
             ) {
-                icon()
+                androidx.compose.foundation.layout.Box(modifier = Modifier.size(18.dp)) {
+                    icon()
+                }
             }
         }
     }
