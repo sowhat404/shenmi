@@ -742,14 +742,15 @@ private fun TopBar(
             .fillMaxWidth()
             .background(
                 brush = Brush.verticalGradient(
-                    // 按官方 App 截图量的遮盖曲线：底部约 20dp 内从 ~96% 渐退到 ~45%
+                    // 底部一路平滑退到 0(缓出曲线)，底边不能留残余不透明度，否则会出现一道硬分界线
                     colorStops = arrayOf(
                         0.0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
-                        0.72f to MaterialTheme.colorScheme.background.copy(alpha = 0.96f),
-                        0.84f to MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
-                        0.93f to MaterialTheme.colorScheme.background.copy(alpha = 0.66f),
-                        0.99f to MaterialTheme.colorScheme.background.copy(alpha = 0.45f),
-                        1.0f to Color.Transparent,
+                        0.55f to MaterialTheme.colorScheme.background.copy(alpha = 0.96f),
+                        0.68f to MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+                        0.78f to MaterialTheme.colorScheme.background.copy(alpha = 0.66f),
+                        0.87f to MaterialTheme.colorScheme.background.copy(alpha = 0.40f),
+                        0.94f to MaterialTheme.colorScheme.background.copy(alpha = 0.16f),
+                        1.0f to MaterialTheme.colorScheme.background.copy(alpha = 0f),
                     )
                 )
             )
